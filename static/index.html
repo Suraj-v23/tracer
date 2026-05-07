@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracer</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="canvas-container">
+        <div id="node-workspace">
+            <canvas id="wires-layer"></canvas>
+            <div id="nodes-layer"></div>
+        </div>
+    </div>
+
+    <!-- ── Top Layout ── -->
+    <div id="top-area">
+        <header id="toolbar" class="glass">
+            <div id="breadcrumb-wrap">
+                <div id="breadcrumb">/</div>
+            </div>
+
+            <button id="btn-back" class="toolbar-btn" title="Go back (Backspace)" disabled>←</button>
+            <button id="btn-forward" class="toolbar-btn" title="Go forward (])" disabled>→</button>
+
+            <div id="search-wrap">
+                <span class="search-icon">⌕</span>
+                <input id="search-input" type="text" placeholder="Search…" autocomplete="off" spellcheck="false">
+                <button id="search-clear" class="hidden" title="Clear">✕</button>
+            </div>
+
+            <select id="sort-select">
+                <option value="size-desc">Size ↓</option>
+                <option value="size-asc">Size ↑</option>
+                <option value="name-asc">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="type">Type</option>
+            </select>
+        </header>
+    </div>
+
+    <!-- ── Sidebar ── -->
+    <aside id="sidebar" class="glass hidden">
+        <button id="sidebar-close">✕</button>
+        <div class="sb-header">
+            <div id="sb-icon">📄</div>
+            <div id="sb-name"></div>
+            <div id="sb-size-badge"></div>
+        </div>
+        <div class="sb-details">
+            <table id="sb-table">
+                <tr><td>Type</td><td id="sb-type"></td></tr>
+                <tr><td>Size</td><td id="sb-size"></td></tr>
+                <tr><td>Path</td><td id="sb-path"></td></tr>
+                <tr><td>Modified</td><td id="sb-modified"></td></tr>
+                <tr><td>Readonly</td><td id="sb-readonly"></td></tr>
+            </table>
+        </div>
+        <div id="sb-actions">
+            <button id="sb-enter" class="sb-btn primary hidden">📂 Open Folder</button>
+            <button id="sb-delete" class="sb-btn danger">Delete</button>
+        </div>
+    </aside>
+
+    <!-- ── Tooltip ── -->
+    <div id="tooltip" class="glass hidden">
+        <div id="tt-name"></div>
+        <div id="tt-meta">
+            <span id="tt-size"></span>
+            <span id="tt-type"></span>
+        </div>
+        <div id="tt-hint"></div>
+    </div>
+
+    <!-- ── Context menu ── -->
+    <div id="ctx-menu" class="glass hidden">
+        <div class="ctx-item" id="ctx-open">📂 Open Folder</div>
+        <div class="ctx-item" id="ctx-info">Info</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item danger" id="ctx-delete">Delete</div>
+    </div>
+
+    <!-- ── Delete confirm modal ── -->
+    <div id="confirm-modal" class="hidden">
+        <div class="modal-content">
+            <div class="modal-icon">⚠️</div>
+            <h3>Delete?</h3>
+            <p id="confirm-text">Are you sure?</p>
+            <div class="modal-buttons">
+                <button id="btn-cancel" class="btn-secondary">Cancel</button>
+                <button id="btn-delete" class="btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Stats bar ── -->
+    <div id="stats-bar" class="glass">
+        <span id="item-count">0 items</span>
+        <span class="stats-sep">·</span>
+        <span id="total-size">0 B</span>
+        <span class="stats-sep">·</span>
+        <span id="match-count"></span>
+        <span id="cached-count" style="margin-left:auto;font-size:0.72rem;color:var(--text-muted)"></span>
+        <span id="cache-badge" class="hidden" style="margin-left:10px;font-size:0.72rem;color:var(--text-muted);display:flex;align-items:center;gap:5px"></span>
+    </div>
+
+    <!-- ── Loading overlay ── -->
+    <div id="loading">
+        <div class="spinner-wrapper">
+            <div class="spinner-ring"></div>
+            <div class="spinner-core"></div>
+        </div>
+        <div class="loading-text">Scanning…</div>
+        <div class="loading-path" id="loading-path"></div>
+    </div>
+
+    <!-- ── Toast notifications ── -->
+    <div id="toast-container"></div>
+
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>
