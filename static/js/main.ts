@@ -16,8 +16,10 @@ async function init(): Promise<void> {
     bindGlobalEvents();
     centerWorkspace();
 
-    const homeDir = await api.getHomeDir().catch(() => '/Users');
-    await nav.navigate(homeDir);
+    const params    = new URLSearchParams(window.location.search);
+    const pathParam = params.get('path');
+    const startPath = pathParam || await api.getHomeDir().catch(() => '/Users');
+    await nav.navigate(startPath);
     document.getElementById('loading')?.classList.add('hidden');
 }
 

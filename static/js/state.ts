@@ -13,7 +13,12 @@ export const state = {
     sortMode:     'size-desc',
 
     // Context menu target
-    ctxTarget: null as FsNode | null,
+    ctxTarget:   null as FsNode | null,
+    ctxTargetEl: null as HTMLElement | null,
+
+    // Move mode
+    moveMode:   false,
+    moveSource: null as FsNode | null,
 
     // Selected node element
     selectedNode: null as HTMLElement | null,

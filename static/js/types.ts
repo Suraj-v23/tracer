@@ -5,7 +5,9 @@ export interface FsNode {
     size: number;
     size_human: string;
     modified_time: string;
+    created_time: string;
     readonly: boolean;
     extension?: string;
+    children_count?: number;
     children?: FsNode[];
 }

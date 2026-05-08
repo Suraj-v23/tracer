@@ -26,3 +26,19 @@ export async function deleteItem(path: string): Promise<void> {
 export async function getHomeDir(): Promise<string> {
     return _invoke('get_home_dir') as Promise<string>;
 }
+
+export async function createFile(path: string): Promise<void> {
+    return _invoke('create_file', { path }) as Promise<void>;
+}
+
+export async function createFolder(path: string): Promise<void> {
+    return _invoke('create_folder', { path }) as Promise<void>;
+}
+
+export async function moveItem(from: string, to: string): Promise<void> {
+    return _invoke('move_item', { from, to }) as Promise<void>;
+}
+
+export async function openNewWindow(path: string): Promise<void> {
+    return _invoke('open_in_new_window', { path }) as Promise<void>;
+}

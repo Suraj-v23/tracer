@@ -4,6 +4,7 @@ import * as nav from './navigation.js';
 import { applyFiltersAndRender, applySearch } from './search.js';
 import { openSidebar, closeSidebar, setSidebarItem } from './sidebar.js';
 import { centerWorkspace, updateTransform, redrawWires } from './canvas.js';
+import { expandNodeInPlace, getNodesLayer, collapseExpansion, popAndCollapse } from './nodes.js';
 import * as store from './store.js';
 import * as api from './api.js';
 
@@ -18,6 +19,45 @@ export function toast(msg: string, type = ''): void {
     }, 2500);
 }
 
+const EDGE_SIZE = 80;  // px from viewport edge that triggers auto-pan
+const PAN_SPEED  = 10; // px per frame
+
+let _lastMouse = { x: 0, y: 0 };
+let _edgePanId: number | null = null;
+
+function startEdgePan(): void {
+    if (_edgePanId !== null) return;
+    _edgePanId = requestAnimationFrame(edgePanFrame);
+}
+
+function stopEdgePan(): void {
+    if (_edgePanId !== null) { cancelAnimationFrame(_edgePanId); _edgePanId = null; }
+}
+
+function edgePanFrame(): void {
+    if (!state.draggingNode) { stopEdgePan(); return; }
+
+    const { x: mx, y: my } = _lastMouse;
+    let dx = 0, dy = 0;
+    if (mx < EDGE_SIZE)                      dx =  PAN_SPEED;
+    if (mx > window.innerWidth  - EDGE_SIZE) dx = -PAN_SPEED;
+    if (my < EDGE_SIZE)                      dy =  PAN_SPEED;
+    if (my > window.innerHeight - EDGE_SIZE) dy = -PAN_SPEED;
+
+    if (dx || dy) {
+        state.transform.x += dx;
+        state.transform.y += dy;
+        // Keep node under cursor as canvas pans
+        const s = state.transform.scale;
+        state.draggingNode.style.left = `${parseFloat(state.draggingNode.style.left) - dx / s}px`;
+        state.draggingNode.style.top  = `${parseFloat(state.draggingNode.style.top)  - dy / s}px`;
+        updateTransform();
+        redrawWires();
+    }
+
+    _edgePanId = requestAnimationFrame(edgePanFrame);
+}
+
 export function bindCanvasEvents(): void {
     const container = document.getElementById('canvas-container')!;
 
@@ -30,13 +70,16 @@ export function bindCanvasEvents(): void {
     });
 
     window.addEventListener('mousemove', e => {
+        _lastMouse = { x: e.clientX, y: e.clientY };
         if (state.draggingNode) {
             state.nodeHasDragged = true;
+            document.body.style.cursor = 'grabbing';
             const mouseX = (e.clientX - state.transform.x) / state.transform.scale;
             const mouseY = (e.clientY - state.transform.y) / state.transform.scale;
             state.draggingNode.style.left = `${mouseX - state.nodeDragOffset.x}px`;
             state.draggingNode.style.top  = `${mouseY - state.nodeDragOffset.y}px`;
             redrawWires();
+            startEdgePan();
             return;
         }
         if (!state.isDragging) return;
@@ -46,11 +89,13 @@ export function bindCanvasEvents(): void {
     });
 
     window.addEventListener('mouseup', () => {
+        stopEdgePan();
         if (state.draggingNode) {
             state.draggingNode.style.transition = '';
             setTimeout(() => { state.draggingNode = null; }, 0);
         }
         state.isDragging = false;
+        document.body.style.cursor = '';
         container.style.cursor = 'grab';
     });
 
@@ -69,6 +114,44 @@ export function bindCanvasEvents(): void {
     }, { passive: false });
 }
 
+let _createType: 'file' | 'folder' = 'file';
+let _createBasePath = '';
+
+function showCreateModal(type: 'file' | 'folder', basePath: string): void {
+    _createType    = type;
+    _createBasePath = basePath;
+    const icon  = document.getElementById('create-icon')!;
+    const title = document.getElementById('create-title')!;
+    const input = document.getElementById('create-input') as HTMLInputElement;
+    icon.textContent  = type === 'file' ? '📄' : '📁';
+    title.textContent = type === 'file' ? 'New File' : 'New Folder';
+    input.value = '';
+    document.getElementById('create-modal')!.classList.remove('hidden');
+    setTimeout(() => input.focus(), 50);
+}
+
+function exitMoveMode(): void {
+    state.moveMode   = false;
+    state.moveSource = null;
+    document.getElementById('move-indicator')?.classList.add('hidden');
+}
+
+async function executeMoveInto(destFolder: import('./types.js').FsNode): Promise<void> {
+    const src      = state.moveSource!;
+    const destPath = destFolder.path.replace(/\/$/, '') + '/' + src.name;
+    try {
+        await api.moveItem(src.path, destPath);
+        store.invalidate(src.path);
+        store.invalidate(state.currentPath);
+        store.invalidate(destFolder.path);
+        toast(`Moved ${src.name} → ${destFolder.name}`, 'success');
+    } catch (err) {
+        toast('Move failed: ' + err, 'error');
+    }
+    exitMoveMode();
+    await nav.navigate(state.currentPath);
+}
+
 export function bindGlobalEvents(): void {
     window.addEventListener('click', e => {
         const target  = e.target as HTMLElement;
@@ -81,8 +164,35 @@ export function bindGlobalEvents(): void {
         }
     });
 
-    document.getElementById('ctx-open')!.addEventListener('click', () => {
-        if (state.ctxTarget?.type === 'directory') nav.navigate(state.ctxTarget.path);
+    document.getElementById('ctx-open')!.addEventListener('click', async () => {
+        const item = state.ctxTarget;
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+        if (!item || item.type !== 'directory') return;
+
+        const sourceEl = [...getNodesLayer().querySelectorAll<HTMLElement>('.html-node')]
+            .find(el => (el as any)._fsNode?.path === item.path);
+        if (!sourceEl) return;
+        if ((sourceEl as any)._expanded) { toast('Already expanded', ''); return; }
+
+        try {
+            const data = await api.getFilesystem(item.path, 2);
+            if (data.children?.length) {
+                expandNodeInPlace(data.children, sourceEl, handleNodeClick, bindNodeContextMenu);
+            } else {
+                toast('Empty folder', '');
+            }
+        } catch (err) {
+            toast('Error: ' + err, 'error');
+        }
+    });
+
+    document.getElementById('ctx-open-new')!.addEventListener('click', () => {
+        if (state.ctxTarget?.type === 'directory') api.openNewWindow(state.ctxTarget.path).catch(e => toast('Error: ' + e, 'error'));
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+    });
+
+    document.getElementById('ctx-collapse')!.addEventListener('click', () => {
+        if (state.ctxTargetEl) collapseExpansion(state.ctxTargetEl);
         document.getElementById('ctx-menu')!.classList.add('hidden');
     });
 
@@ -94,6 +204,65 @@ export function bindGlobalEvents(): void {
     document.getElementById('ctx-delete')!.addEventListener('click', () => {
         if (state.ctxTarget) showDeleteModal(state.ctxTarget);
         document.getElementById('ctx-menu')!.classList.add('hidden');
+    });
+
+    document.getElementById('ctx-new-file')!.addEventListener('click', () => {
+        const base = state.ctxTarget?.type === 'directory' ? state.ctxTarget.path : state.currentPath;
+        showCreateModal('file', base);
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+    });
+
+    document.getElementById('ctx-new-folder')!.addEventListener('click', () => {
+        const base = state.ctxTarget?.type === 'directory' ? state.ctxTarget.path : state.currentPath;
+        showCreateModal('folder', base);
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+    });
+
+    document.getElementById('ctx-move')!.addEventListener('click', () => {
+        if (state.ctxTarget) {
+            state.moveMode   = true;
+            state.moveSource = state.ctxTarget;
+            document.getElementById('move-indicator')!.classList.remove('hidden');
+        }
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+    });
+
+    document.getElementById('btn-new-file')?.addEventListener('click', () =>
+        showCreateModal('file', state.currentPath)
+    );
+
+    document.getElementById('btn-new-folder')?.addEventListener('click', () =>
+        showCreateModal('folder', state.currentPath)
+    );
+
+    document.getElementById('btn-move-cancel')?.addEventListener('click', exitMoveMode);
+
+    document.getElementById('btn-create-cancel')!.addEventListener('click', () =>
+        document.getElementById('create-modal')!.classList.add('hidden')
+    );
+
+    const createInput = document.getElementById('create-input') as HTMLInputElement;
+    createInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  document.getElementById('btn-create-confirm')!.click();
+        if (e.key === 'Escape') document.getElementById('create-modal')!.classList.add('hidden');
+    });
+
+    document.getElementById('btn-create-confirm')!.addEventListener('click', async () => {
+        const input = document.getElementById('create-input') as HTMLInputElement;
+        const name  = input.value.trim();
+        if (!name) return;
+        const fullPath = _createBasePath.replace(/\/$/, '') + '/' + name;
+        try {
+            if (_createType === 'file') await api.createFile(fullPath);
+            else                        await api.createFolder(fullPath);
+            store.invalidate(_createBasePath);
+            store.invalidate(state.currentPath);
+            toast(`Created ${name}`, 'success');
+            document.getElementById('create-modal')!.classList.add('hidden');
+            await nav.navigate(state.currentPath);
+        } catch (err) {
+            toast('Create failed: ' + err, 'error');
+        }
     });
 
     document.getElementById('sb-delete')!.addEventListener('click', () => {
@@ -139,10 +308,10 @@ export function bindGlobalEvents(): void {
             return;
         }
 
-        if (e.key === 'Backspace' && !e.shiftKey && nav.canGoBack()) {
+        if (e.key === 'Backspace' && !e.shiftKey) {
             e.preventDefault();
-            const prev = nav.back();
-            if (prev) nav.navigate(prev);
+            if (popAndCollapse()) return;
+            if (nav.canGoBack()) { const prev = nav.back(); if (prev) nav.navigate(prev); }
             return;
         }
 
@@ -167,7 +336,17 @@ export function bindGlobalEvents(): void {
         if (e.key === '/') { e.preventDefault(); si.focus(); }
     });
 
+    document.getElementById('nodes-layer')!.addEventListener('dblclick', e => {
+        const nodeEl = (e.target as HTMLElement).closest('.html-node') as HTMLElement | null;
+        if (!nodeEl) return;
+        const item = (nodeEl as any)._fsNode as import('./types.js').FsNode | undefined;
+        if (item?.type === 'directory') {
+            api.openNewWindow(item.path).catch(err => toast('Error: ' + err, 'error'));
+        }
+    });
+
     document.getElementById('btn-back')?.addEventListener('click', () => {
+        if (popAndCollapse()) return;
         const prev = nav.back();
         if (prev) nav.navigate(prev);
     });
@@ -203,19 +382,23 @@ export function showDeleteModal(item: FsNode): void {
 }
 
 export function bindNodeContextMenu(item: FsNode, e: MouseEvent): void {
-    state.ctxTarget = item;
-    document.getElementById('ctx-open')!.classList.toggle('disabled', item.type !== 'directory');
+    state.ctxTarget   = item;
+    state.ctxTargetEl = (e.target as HTMLElement).closest<HTMLElement>('.html-node');
+    const isDir      = item.type === 'directory';
+    const isExpanded = !!(state.ctxTargetEl as any)?._expanded;
+    document.getElementById('ctx-open')!.classList.toggle('hidden',     !isDir);
+    document.getElementById('ctx-open-new')!.classList.toggle('hidden', !isDir);
+    document.getElementById('ctx-collapse')!.classList.toggle('hidden', !isExpanded);
     const ctxMenu = document.getElementById('ctx-menu')!;
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth  - 190) + 'px';
-    ctxMenu.style.top  = Math.min(e.clientY, window.innerHeight - 130) + 'px';
+    ctxMenu.style.top  = Math.min(e.clientY, window.innerHeight - 180) + 'px';
     ctxMenu.classList.remove('hidden');
 }
 
 export function handleNodeClick(item: FsNode, el: HTMLElement, isRoot: boolean): void {
-    setSidebarItem(item);
-    if (item.type === 'directory' && !isRoot) {
-        nav.navigate(item.path);
-    } else {
-        openSidebar(item);
+    if (state.moveMode && state.moveSource && item.type === 'directory' && item.path !== state.moveSource.path) {
+        executeMoveInto(item);
+        return;
     }
+    openSidebar(item);
 }

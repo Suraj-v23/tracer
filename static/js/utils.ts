@@ -46,3 +46,25 @@ export function getColor(item: { type: string; extension?: string }): string {
     const cat = getFileCategory(item);
     return cat === 'directory' ? COLORS.folder : (COLORS[cat] ?? COLORS.other);
 }
+
+// Maps file size to a hex colour: grey (tiny) → green → yellow → red (large).
+// Returns hex so callers can append 2-digit alpha (e.g. color + '20').
+export function sizeToColor(size: number, maxSize: number): string {
+    if (maxSize === 0 || size === 0) return '#6b7280';
+    const ratio = Math.log(size + 1) / Math.log(maxSize + 1); // 0..1
+    if (ratio < 0.08) return '#6b7280';                        // very small → grey
+    const t   = Math.min((ratio - 0.08) / 0.92, 1);           // 0..1
+    const hue = Math.round(120 * (1 - t));                     // green(120°) → red(0°)
+    return _hslToHex(hue, 62, 52);
+}
+
+function _hslToHex(h: number, s: number, l: number): string {
+    s /= 100; l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * c).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+}

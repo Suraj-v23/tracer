@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Allow reading files the user selects (required for filesystem browsing) -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <!-- Allow reading the entire filesystem (needed to scan home dir) -->
+    <key>com.apple.security.files.all</key>
+    <true/>
+    <!-- Network client (only needed for Google Fonts CDN in dev) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+  </dict>
+</plist>

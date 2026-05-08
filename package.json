@@ -1,7 +1,7 @@
 {
   "name": "tracer",
   "version": "0.1.0",
-  "description": "Tracer — 3D Filesystem Explorer for macOS",
+  "description": "Tracer — Filesystem Graph Explorer for macOS",
   "private": true,
   "scripts": {
     "dev": "npx tauri dev",
@@ -14,17 +14,17 @@
   },
   "keywords": [
     "filesystem",
-    "three.js",
+    "node-graph",
     "visualization",
-    "3d",
     "macos",
-    "tauri"
+    "tauri",
+    "rust"
   ],
-  "author": "Suraj",
+  "author": "suraj-v23",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/tracer"
+    "url": "https://github.com/suraj-v23/tracer"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
