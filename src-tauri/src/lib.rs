@@ -136,7 +136,7 @@ fn scan_dir(path: &Path, current_depth: usize, max_depth: usize) -> Option<Vec<F
         })
         .collect();
 
-    nodes.sort_by(|a, b| b.size.cmp(&a.size));
+    nodes.sort_by_key(|b| std::cmp::Reverse(b.size));
     Some(nodes)
 }
 
@@ -331,7 +331,7 @@ async fn open_in_new_window(app: tauri::AppHandle, path: String) -> Result<(), S
         label,
         tauri::WebviewUrl::App(format!("index.html?path={}", encoded).into()),
     )
-    .title(format!("Tracer — {}", path.split('/').last().unwrap_or(&path)))
+    .title(format!("Tracer — {}", path.split('/').next_back().unwrap_or(&path)))
     .inner_size(1400.0, 900.0)
     .build()
     .map_err(|e| e.to_string())?;
