@@ -81,9 +81,11 @@ export function updateBreadcrumb(path: string): void {
     const parts = path.split('/').filter(Boolean);
     let html = `<span class="crumb" data-path="/">/</span>`;
     let cur  = '';
-    for (const p of parts) {
+    for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
         cur += '/' + p;
-        html += `<span class="crumb-sep">/</span><span class="crumb" data-path="${cur}">${p}</span>`;
+        if (i > 0) html += `<span class="crumb-sep">/</span>`;
+        html += `<span class="crumb" data-path="${cur}">${p}</span>`;
     }
     breadcrumb.innerHTML = html;
     breadcrumb.querySelectorAll<HTMLElement>('.crumb').forEach(el => {
