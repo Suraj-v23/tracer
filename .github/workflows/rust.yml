@@ -92,14 +92,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14       # Apple Silicon
-            target: aarch64-apple-darwin
+          - target: aarch64-apple-darwin
             arch: arm64
-          - os: macos-13       # Intel
-            target: x86_64-apple-darwin
+          - target: x86_64-apple-darwin
             arch: x64
 
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-14  # Apple Silicon can cross-compile to Intel via Xcode toolchain
     steps:
       - uses: actions/checkout@v4
 
@@ -119,7 +117,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - run: npm install
       - run: npm run build:ts
