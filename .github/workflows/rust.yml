@@ -99,8 +99,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: Tracer v__VERSION__
+          tagName: ${{ github.ref_name }}
+          releaseName: Tracer ${{ github.ref_name }}
           releaseBody: |
             ## Download
 
