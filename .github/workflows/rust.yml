@@ -61,20 +61,22 @@ jobs:
               repo:  context.repo.repo,
               tag_name: tag,
               name: `Tracer ${tag}`,
-              body: `## Download
-
-| Chip | File |
-|------|------|
-| Apple Silicon (M1/M2/M3) | \`Tracer_*_aarch64.dmg\` |
-| Intel | \`Tracer_*_x64.dmg\` |
-
-## Install
-1. Download the \`.dmg\` for your chip
-2. Open it and drag **Tracer.app** to \`/Applications\`
-3. First launch: right-click → **Open** (bypasses Gatekeeper — app is unsigned)
-
-## Requirements
-macOS 13 (Ventura) or later`,
+              body: [
+                '## Download',
+                '',
+                '| Chip | File |',
+                '|------|------|',
+                '| Apple Silicon (M1/M2/M3) | `Tracer_*_aarch64.dmg` |',
+                '| Intel | `Tracer_*_x64.dmg` |',
+                '',
+                '## Install',
+                '1. Download the `.dmg` for your chip',
+                '2. Open it and drag **Tracer.app** to `/Applications`',
+                '3. First launch: right-click → **Open** (bypasses Gatekeeper — app is unsigned)',
+                '',
+                '## Requirements',
+                'macOS 13 (Ventura) or later'
+              ].join('\\n'),
               draft: false,
               prerelease: false,
             });
