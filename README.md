@@ -2,6 +2,8 @@
 
 > A macOS desktop app that visualises your filesystem as an interactive node graph. Directories and files appear as cards connected by wires — you can expand any folder inline, drag nodes freely, open branches in separate windows, and manage files without leaving the view.
 
+![Tracer demo](assets/demo.gif)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange?logo=rust)](https://www.rust-lang.org/)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-purple?logo=tauri)](https://tauri.app/)
