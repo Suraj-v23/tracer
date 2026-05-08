@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.tracer.fs3d",
   "build": {
-    "frontendDist": "../static"
+    "frontendDist": "../frontend"
   },
   "app": {
     "windows": [

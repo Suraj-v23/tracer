@@ -87,7 +87,7 @@ tracer/
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
 │   └── icons/
-├── static/
+├── frontend/
 │   ├── index.html
 │   ├── css/style.css
 │   └── js/
@@ -111,7 +111,7 @@ tracer/
 ### How it works
 
 1. **Tauri** launches a native macOS window with an embedded WKWebView
-2. The webview loads `static/index.html` from disk — no HTTP server
+2. The webview loads `frontend/index.html` from disk — no HTTP server
 3. The frontend invokes Rust commands via `window.__TAURI_INTERNALS__.invoke(...)`:
    - `get_filesystem(path, depth)` — parallel Rayon scan, 30-second TTL cache
    - `create_file` / `create_folder` / `delete_item` / `move_item`

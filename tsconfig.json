@@ -10,9 +10,9 @@
     "skipLibCheck": true,
     "noEmitOnError": false,
     "allowJs": false,
-    "outDir": "./static/js",
-    "rootDir": "./static/js"
+    "outDir": "./frontend/js",
+    "rootDir": "./frontend/js"
   },
-  "include": ["static/js/**/*.ts"],
-  "exclude": ["static/js/**/*.test.ts", "node_modules"]
+  "include": ["frontend/js/**/*.ts"],
+  "exclude": ["frontend/js/**/*.test.ts", "node_modules"]
 }
