@@ -1,7 +1,18 @@
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+
+fn physical_size(m: &std::fs::Metadata) -> u64 {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        m.blocks() * 512
+    }
+    #[cfg(not(unix))]
+    {
+        m.len()
+    }
+}
 
 // ─── Data types ──────────────────────────────────────────────────────────────
 
@@ -51,7 +62,7 @@ fn get_dir_size(path: &Path) -> u64 {
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| !e.file_type().is_dir() && !e.file_type().is_symlink())
-        .map(|e| e.metadata().map(|m| m.blocks() * 512).unwrap_or(0))
+        .map(|e| e.metadata().map(|m| physical_size(&m)).unwrap_or(0))
         .sum()
 }
 
@@ -117,7 +128,7 @@ fn scan_dir(path: &Path, current_depth: usize, max_depth: usize) -> Option<Vec<F
                     None => get_dir_size(&ep),
                 }
             } else {
-                metadata.blocks() * 512
+                physical_size(&metadata)
             };
 
             Some(FsNode {
