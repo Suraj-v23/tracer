@@ -212,7 +212,7 @@ async fn stream_file(
             app.emit(
                 "transfer-progress",
                 serde_json::json!({
-                    "session_id": session_id,
+                    "session_id": session_id.to_string(),
                     "bytes_done": bytes_done,
                     "total": total,
                 }),
@@ -222,7 +222,7 @@ async fn stream_file(
     }
 
     {
-        let mut sessions = sessions.lock().unwrap();
+        let mut sessions = sessions.lock().map_err(|e| format!("Lock failed: {}", e))?;
         if let Some(s) = sessions.get_mut(session_id) {
             s.state = TransferState::Done;
         }
