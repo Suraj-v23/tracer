@@ -42,3 +42,37 @@ export async function moveItem(from: string, to: string): Promise<void> {
 export async function openNewWindow(path: string): Promise<void> {
     return _invoke('open_in_new_window', { path }) as Promise<void>;
 }
+
+import type {
+    PeerInfo,
+    TransferSession,
+} from './types.js';
+
+export async function getPeers(): Promise<PeerInfo[]> {
+    return _invoke('get_peers') as Promise<PeerInfo[]>;
+}
+
+export async function startTransfer(path: string, peerId: string): Promise<TransferSession> {
+    return _invoke('start_transfer', { path, peerId }) as Promise<TransferSession>;
+}
+
+export async function acceptTransfer(sessionId: string, destPath: string): Promise<void> {
+    return _invoke('accept_transfer', { sessionId, destPath }) as Promise<void>;
+}
+
+export async function rejectTransfer(sessionId: string): Promise<void> {
+    return _invoke('reject_transfer', { sessionId }) as Promise<void>;
+}
+
+export async function cancelTransfer(sessionId: string): Promise<void> {
+    return _invoke('cancel_transfer', { sessionId }) as Promise<void>;
+}
+
+export function listenEvent<T>(
+    event: string,
+    handler: (payload: T) => void
+): Promise<() => void> {
+    const tauri = (window as any).__TAURI__;
+    if (!tauri?.event?.listen) return Promise.resolve(() => {});
+    return tauri.event.listen(event, (e: { payload: T }) => handler(e.payload));
+}
