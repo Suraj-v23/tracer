@@ -39,8 +39,9 @@ pub fn start_discovery(
             match receiver.recv() {
                 Ok(ServiceEvent::ServiceResolved(info)) => {
                     let id = info.get_fullname().to_string();
-                    // Skip self
-                    if info.get_fullname().contains(&own_name) {
+                    // Skip self (exact match to avoid "tracer-1" matching "tracer-10")
+                    let own_fullname = format!("{}.{}", own_name, SERVICE_TYPE);
+                    if info.get_fullname() == own_fullname {
                         continue;
                     }
                     if let Some(addr) = info.get_addresses().iter().next() {
@@ -68,7 +69,10 @@ pub fn start_discovery(
                     app.emit("peer-lost", &fullname).ok();
                 }
                 Ok(_) => {}
-                Err(_) => break,
+                Err(e) => {
+                    eprintln!("[discovery] mDNS receiver error, stopping discovery: {:?}", e);
+                    break;
+                }
             }
         }
     });
