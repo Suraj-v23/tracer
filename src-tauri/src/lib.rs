@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+mod transfer;
 
 fn physical_size(m: &std::fs::Metadata) -> u64 {
     #[cfg(unix)]
@@ -12,6 +13,20 @@ fn physical_size(m: &std::fs::Metadata) -> u64 {
     {
         m.len()
     }
+}
+
+fn is_reparse_point(m: &std::fs::Metadata) -> bool {
+    if m.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+        return m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+    }
+    #[cfg(not(windows))]
+    false
 }
 
 // ─── Data types ──────────────────────────────────────────────────────────────
@@ -61,7 +76,10 @@ fn get_dir_size(path: &Path) -> u64 {
         .same_file_system(true)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| !e.file_type().is_dir() && !e.file_type().is_symlink())
+        .filter(|e| {
+            !e.file_type().is_dir()
+                && e.metadata().map(|m| !is_reparse_point(&m)).unwrap_or(false)
+        })
         .map(|e| e.metadata().map(|m| physical_size(&m)).unwrap_or(0))
         .sum()
 }
@@ -80,8 +98,8 @@ fn scan_dir(path: &Path, current_depth: usize, max_depth: usize) -> Option<Vec<F
     let mut nodes: Vec<FsNode> = entries
         .par_iter()
         .filter_map(|entry| {
-            let metadata = entry.metadata().ok()?;
-            if metadata.file_type().is_symlink() {
+            let metadata = entry.path().symlink_metadata().ok()?;
+            if is_reparse_point(&metadata) {
                 return None;
             }
 
