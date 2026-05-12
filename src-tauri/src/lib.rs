@@ -2,6 +2,8 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 mod transfer;
+use transfer::commands::TransferAppState;
+use tauri::Manager;
 
 fn physical_size(m: &std::fs::Metadata) -> u64 {
     #[cfg(unix)]
@@ -169,7 +171,7 @@ fn scan_dir(path: &Path, current_depth: usize, max_depth: usize) -> Option<Vec<F
     Some(nodes)
 }
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 
@@ -382,6 +384,41 @@ fn get_home_dir() -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let sessions: Arc<Mutex<HashMap<String, transfer::TransferSession>>> =
+                Arc::new(Mutex::new(HashMap::new()));
+            let peers: Arc<Mutex<HashMap<String, transfer::PeerInfo>>> =
+                Arc::new(Mutex::new(HashMap::new()));
+
+            let device_name = hostname::get()
+                .map(|h| h.to_string_lossy().to_string())
+                .unwrap_or_else(|_| "Tracer".to_string());
+
+            let app_handle = app.handle().clone();
+            let sessions_srv = sessions.clone();
+            let dev_name_srv = device_name.clone();
+
+            let port = tauri::async_runtime::block_on(async move {
+                transfer::server::start_server(sessions_srv, app_handle, dev_name_srv).await
+            });
+
+            transfer::discovery::start_discovery(
+                peers.clone(),
+                app.handle().clone(),
+                &device_name,
+                port,
+            )
+            .unwrap_or_else(|e| eprintln!("mDNS init failed: {e}"));
+
+            app.manage(TransferAppState {
+                sessions,
+                peers,
+                server_port: port,
+                device_name,
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_filesystem,
             delete_item,
@@ -390,6 +427,11 @@ pub fn run() {
             create_folder,
             move_item,
             open_in_new_window,
+            transfer::commands::get_peers,
+            transfer::commands::start_transfer,
+            transfer::commands::accept_transfer,
+            transfer::commands::reject_transfer,
+            transfer::commands::cancel_transfer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tracer");
