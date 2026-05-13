@@ -235,7 +235,7 @@ export function bindGlobalEvents(): void {
             toast('Select a file to send (folders not supported in v1)', '');
             return;
         }
-        (state as any).ctxSendPath = item.path;
+        state.ctxSendPath = item.path;
         await showSendPanel(item.path, item.name);
     });
 
