@@ -18,7 +18,10 @@ pub struct IndexStats {
 
 // ─── Scan ─────────────────────────────────────────────────────────────────────
 
-pub fn scan_and_index(root: &Path, store: &Store) -> Result<IndexStats, String> {
+/// Phase 1: collect all file metadata from disk — no store lock needed.
+/// Returns (dir_entries, graph_nodes). Can take seconds; caller must NOT hold
+/// the store mutex while calling this.
+pub fn collect_nodes(root: &Path) -> (Vec<walkdir::DirEntry>, Vec<GraphNode>) {
     let entries: Vec<_> = WalkDir::new(root)
         .follow_links(false)
         .into_iter()
@@ -26,22 +29,27 @@ pub fn scan_and_index(root: &Path, store: &Store) -> Result<IndexStats, String> 
         .filter(|e| !e.path().symlink_metadata().map(|m| m.file_type().is_symlink()).unwrap_or(true))
         .collect();
 
-    let total = entries.len();
-
     let nodes: Vec<GraphNode> = entries.par_iter()
         .filter_map(|entry| entry_to_node(entry.path()))
         .collect();
 
+    (entries, nodes)
+}
+
+/// Phase 2: write collected nodes into the store. Caller controls lock granularity.
+pub fn insert_nodes(store: &Store, entries: &[walkdir::DirEntry], nodes: &[GraphNode]) -> IndexStats {
+    let total = nodes.len();
     let mut indexed = 0;
     let mut errors  = 0;
-    for node in &nodes {
+
+    for node in nodes {
         match store.upsert_node(node) {
             Ok(_)  => indexed += 1,
             Err(_) => errors  += 1,
         }
     }
 
-    for entry in &entries {
+    for entry in entries {
         if let Some(parent) = entry.path().parent() {
             let _ = store.upsert_edge(
                 &entry.path().to_string_lossy(),
@@ -51,9 +59,14 @@ pub fn scan_and_index(root: &Path, store: &Store) -> Result<IndexStats, String> 
         }
     }
 
-    insert_duplicate_edges(store, &nodes);
+    insert_duplicate_edges(store, nodes);
 
-    Ok(IndexStats { total, indexed, errors, watching: false })
+    IndexStats { total, indexed, errors, watching: false }
+}
+
+pub fn scan_and_index(root: &Path, store: &Store) -> Result<IndexStats, String> {
+    let (entries, nodes) = collect_nodes(root);
+    Ok(insert_nodes(store, &entries, &nodes))
 }
 
 pub fn entry_to_node(path: &Path) -> Option<GraphNode> {
@@ -96,6 +109,10 @@ fn hash_file(path: &Path) -> Option<String> {
     let mut hasher = blake3::Hasher::new();
     hasher.update(&data);
     Some(hasher.finalize().to_hex().to_string())
+}
+
+pub fn insert_duplicate_edges_pub(store: &Store, nodes: &[GraphNode]) {
+    insert_duplicate_edges(store, nodes);
 }
 
 fn insert_duplicate_edges(store: &Store, nodes: &[GraphNode]) {

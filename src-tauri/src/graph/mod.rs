@@ -97,24 +97,47 @@ pub async fn graph_set_root(
     let stats_arc = state.stats.clone();
 
     std::thread::spawn(move || {
-        if let Ok(store) = store_arc.lock() {
-            match indexer::scan_and_index(Path::new(&path), &store) {
-                Ok(s) => {
-                    if let Ok(mut stats) = stats_arc.lock() {
-                        stats.total   = s.total;
-                        stats.indexed = s.indexed;
-                        stats.errors  = s.errors;
-                        stats.watching = true;
-                    }
-                    app.emit("graph-index-complete", &s).ok();
+        // Phase 1: collect file metadata WITHOUT holding the store lock.
+        // This is the slow part (disk I/O) — searches can proceed freely.
+        let (entries, nodes) = indexer::collect_nodes(Path::new(&path));
+        let total = nodes.len();
+        if let Ok(mut stats) = stats_arc.lock() { stats.total = total; }
 
-                    // Start watcher after initial scan
-                    let watcher_store = store_arc.clone();
-                    indexer::start_watcher(path, watcher_store, app);
+        // Phase 2: insert in 500-node batches, releasing the lock between
+        // batches so concurrent graph_search calls are never blocked for long.
+        let mut indexed = 0usize;
+        for chunk_nodes in nodes.chunks(500) {
+            // Find the matching entries slice for parent-edge insertion.
+            // We reuse insert_nodes on sub-slices; duplicate edges are added
+            // at the end over the full node set to avoid missed cross-chunk pairs.
+            if let Ok(store) = store_arc.lock() {
+                for node in chunk_nodes {
+                    if store.upsert_node(node).is_ok() { indexed += 1; }
                 }
-                Err(e) => eprintln!("[graph] scan failed: {e}"),
-            }
+            } // lock released here — searches can proceed
+            if let Ok(mut stats) = stats_arc.lock() { stats.indexed = indexed; }
         }
+
+        // Insert parent + duplicate edges in one final brief lock.
+        if let Ok(store) = store_arc.lock() {
+            for entry in &entries {
+                if let Some(parent) = entry.path().parent() {
+                    let _ = store.upsert_edge(
+                        &entry.path().to_string_lossy(),
+                        &parent.to_string_lossy(),
+                        "parent",
+                    );
+                }
+            }
+            indexer::insert_duplicate_edges_pub(&store, &nodes);
+        }
+
+        if let Ok(mut stats) = stats_arc.lock() {
+            stats.indexed  = indexed;
+            stats.watching = true;
+        }
+        app.emit("graph-index-complete", ()).ok();
+        indexer::start_watcher(path, store_arc, app);
     });
 
     Ok(())
