@@ -12,6 +12,16 @@ export function initGraphUI(onFilterMode: () => void): void {
     _onFilterMode = onFilterMode;
     _bindModeButtons();
     _startStatusPolling();
+
+    refreshIndexedFoldersList();
+
+    const tauri = (window as any).__TAURI__;
+    if (tauri?.event?.listen) {
+        tauri.event.listen('graph-content-indexed', () => {
+            refreshIndexedFoldersList();
+            toast('Content indexing complete', 'success');
+        });
+    }
 }
 
 // ─── Search modes ────────────────────────────────────────────────────────────
@@ -145,4 +155,45 @@ export async function triggerIndex(path: string): Promise<void> {
     } catch (e) {
         console.error('[graph] index trigger failed:', e);
     }
+}
+
+// ─── Indexed Folders Panel ────────────────────────────────────────────────────
+
+export async function addIndexedFolder(path: string): Promise<void> {
+    try {
+        await graphApi.graphAddIndexedFolder(path);
+        toast(`Indexing content in ${path.split('/').pop()}…`, '');
+        await refreshIndexedFoldersList();
+    } catch (e) {
+        toast(`Failed to index folder: ${e}`, 'error');
+    }
+}
+
+export async function refreshIndexedFoldersList(): Promise<void> {
+    const list = document.getElementById('graph-indexed-folders-list');
+    if (!list) return;
+
+    let folders: string[] = [];
+    try { folders = await graphApi.graphListIndexedFolders(); } catch { return; }
+
+    list.innerHTML = folders.length === 0
+        ? '<div class="graph-no-folders">No folders deep-indexed yet</div>'
+        : folders.map(f => `
+            <div class="graph-indexed-folder" data-path="${_escHtml(f)}">
+                <span class="gif-name" title="${_escHtml(f)}">${_escHtml(f.split('/').pop() || f)}</span>
+                <button class="gif-remove" data-path="${_escHtml(f)}" title="Remove">✕</button>
+            </div>
+          `).join('');
+
+    list.querySelectorAll<HTMLElement>('.gif-remove').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const p = btn.dataset.path!;
+            try {
+                await graphApi.graphRemoveIndexedFolder(p);
+                await refreshIndexedFoldersList();
+            } catch (e) {
+                toast(`Remove failed: ${e}`, 'error');
+            }
+        });
+    });
 }

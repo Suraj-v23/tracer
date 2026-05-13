@@ -55,3 +55,19 @@ export async function graphSetRoot(path: string): Promise<void> {
 export async function graphSetLlm(config: LlmConfig): Promise<void> {
     return _invoke('graph_set_llm', { config }) as Promise<void>;
 }
+
+export async function graphAddIndexedFolder(path: string): Promise<void> {
+    return _invoke('graph_add_indexed_folder', { path }) as Promise<void>;
+}
+
+export async function graphRemoveIndexedFolder(path: string): Promise<void> {
+    return _invoke('graph_remove_indexed_folder', { path }) as Promise<void>;
+}
+
+export async function graphListIndexedFolders(): Promise<string[]> {
+    return _invoke('graph_list_indexed_folders') as Promise<string[]>;
+}
+
+export async function graphContentSearch(query: string): Promise<GraphSearchResult[]> {
+    return _invoke('graph_content_search', { query }) as Promise<GraphSearchResult[]>;
+}

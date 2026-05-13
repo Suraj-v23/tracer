@@ -454,6 +454,10 @@ pub fn run() {
             graph::graph_index_status,
             graph::graph_set_root,
             graph::graph_set_llm,
+            graph::graph_add_indexed_folder,
+            graph::graph_remove_indexed_folder,
+            graph::graph_list_indexed_folders,
+            graph::graph_content_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tracer");

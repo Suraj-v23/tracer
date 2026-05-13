@@ -55,8 +55,22 @@ pub async fn graph_search(
     state: State<'_, GraphAppState>,
 ) -> Result<Vec<SearchResult>, String> {
     let q = resolve_query(&query_str, &state).await;
-    let store = state.store.lock().map_err(|e| e.to_string())?;
-    execute(&q, &store)
+
+    let mut results = {
+        let store = state.store.lock().map_err(|e| e.to_string())?;
+        execute(&q, &store)?
+    };
+
+    // Fall through to content search if metadata returned nothing
+    if results.is_empty() {
+        if let Ok(store) = state.store.lock() {
+            if let Ok(content_results) = store.content_search(&query_str) {
+                results = content_results;
+            }
+        }
+    }
+
+    Ok(results)
 }
 
 #[tauri::command]
@@ -157,4 +171,60 @@ pub async fn graph_set_llm(
 ) -> Result<(), String> {
     *state.llm_config.lock().map_err(|e| e.to_string())? = Some(config);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn graph_add_indexed_folder(
+    path: String,
+    state: State<'_, GraphAppState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    {
+        let store = state.store.lock().map_err(|e| e.to_string())?;
+        store.add_indexed_folder(&path).map_err(|e| e.to_string())?;
+    }
+
+    let store_arc = state.store.clone();
+    std::thread::spawn(move || {
+        // Ensure nodes exist in graph (may already be from phase 1 scan)
+        let (_, nodes) = crate::graph::indexer::collect_nodes(std::path::Path::new(&path));
+        if let Ok(store) = store_arc.lock() {
+            let _ = store.conn.execute("BEGIN", []);
+            for node in &nodes { let _ = store.upsert_node(node); }
+            let _ = store.conn.execute("COMMIT", []);
+        }
+        // Extract and index content (lock released between phases)
+        if let Ok(store) = store_arc.lock() {
+            crate::graph::content::index_folder(std::path::Path::new(&path), &store);
+        }
+        app.emit("graph-content-indexed", &path).ok();
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn graph_remove_indexed_folder(
+    path: String,
+    state: State<'_, GraphAppState>,
+) -> Result<(), String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.remove_indexed_folder(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn graph_list_indexed_folders(
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<String>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.list_indexed_folders().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn graph_content_search(
+    query: String,
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<SearchResult>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.content_search(&query).map_err(|e| e.to_string())
 }
