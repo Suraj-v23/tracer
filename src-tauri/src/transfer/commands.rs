@@ -138,7 +138,8 @@ pub async fn accept_transfer(
     let sid = session_id.clone();
     tokio::spawn(async move {
         if let Err(e) = stream_file(
-            &sid, &sender_addr, sender_port, &dest_path, &filename, size, &app, &sessions,
+            StreamParams { session_id: &sid, sender_addr: &sender_addr, sender_port, dest_dir: &dest_path, filename: &filename, total: size },
+            &app, &sessions,
         )
         .await
         {
@@ -177,16 +178,21 @@ pub async fn cancel_transfer(
     Ok(())
 }
 
-async fn stream_file(
-    session_id: &str,
-    sender_addr: &str,
+struct StreamParams<'a> {
+    session_id: &'a str,
+    sender_addr: &'a str,
     sender_port: u16,
-    dest_dir: &str,
-    filename: &str,
+    dest_dir: &'a str,
+    filename: &'a str,
     total: u64,
+}
+
+async fn stream_file(
+    p: StreamParams<'_>,
     app: &tauri::AppHandle,
     sessions: &Arc<Mutex<HashMap<String, TransferSession>>>,
 ) -> Result<(), String> {
+    let StreamParams { session_id, sender_addr, sender_port, dest_dir, filename, total } = p;
     let url = format!(
         "http://{}:{}/transfer/{}/file",
         sender_addr, sender_port, session_id
