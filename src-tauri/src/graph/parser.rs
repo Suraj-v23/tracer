@@ -8,16 +8,17 @@ fn re(pattern: &str) -> Regex {
     Regex::new(pattern).expect("invalid regex")
 }
 
-static TS_IMPORT:   OnceLock<Regex> = OnceLock::new();
-static JS_REQUIRE:  OnceLock<Regex> = OnceLock::new();
-static PY_FROM:     OnceLock<Regex> = OnceLock::new();
-static PY_IMPORT:   OnceLock<Regex> = OnceLock::new();
-static RS_MOD:      OnceLock<Regex> = OnceLock::new();
-static RS_USE:      OnceLock<Regex> = OnceLock::new();
-static GO_IMPORT:   OnceLock<Regex> = OnceLock::new();
-static CSS_IMPORT:  OnceLock<Regex> = OnceLock::new();
-static HTML_LINK:   OnceLock<Regex> = OnceLock::new();
-static HTML_SCRIPT: OnceLock<Regex> = OnceLock::new();
+static TS_IMPORT:       OnceLock<Regex> = OnceLock::new();
+static JS_REQUIRE:      OnceLock<Regex> = OnceLock::new();
+static PY_FROM:         OnceLock<Regex> = OnceLock::new();
+static PY_IMPORT:       OnceLock<Regex> = OnceLock::new();
+static RS_MOD:          OnceLock<Regex> = OnceLock::new();
+static RS_USE:          OnceLock<Regex> = OnceLock::new();
+static GO_IMPORT:       OnceLock<Regex> = OnceLock::new();
+static GO_IMPORT_BLOCK: OnceLock<Regex> = OnceLock::new();
+static CSS_IMPORT:      OnceLock<Regex> = OnceLock::new();
+static HTML_LINK:       OnceLock<Regex> = OnceLock::new();
+static HTML_SCRIPT:     OnceLock<Regex> = OnceLock::new();
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -100,7 +101,7 @@ fn extract_go(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let re_single = GO_IMPORT.get_or_init(|| re(r#"import\s+"(\.[\w./]+)""#));
     for cap in re_single.captures_iter(text) { out.push(cap[1].to_string()); }
-    let block = Regex::new(r#""(\.[\w./]+)""#).unwrap();
+    let block = GO_IMPORT_BLOCK.get_or_init(|| re(r#""(\.[\w./]+)""#));
     for cap in block.captures_iter(text) { out.push(cap[1].to_string()); }
     out
 }
