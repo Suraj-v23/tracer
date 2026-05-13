@@ -21,6 +21,9 @@ pub enum StructuredQuery {
         path:  String,
         #[serde(default = "default_depth")] depth: usize,
     },
+    ContentSearch {
+        terms: String,
+    },
 }
 
 fn default_depth() -> usize { 1 }
@@ -52,6 +55,9 @@ pub fn execute(query: &StructuredQuery, store: &Store) -> Result<Vec<SearchResul
 
         StructuredQuery::GetRelated { path, depth } =>
             store.get_children(path, *depth).map_err(|e| e.to_string()),
+
+        StructuredQuery::ContentSearch { terms } =>
+            store.content_search(terms).map_err(|e| e.to_string()),
     }
 }
 
@@ -63,6 +69,21 @@ pub fn heuristic_parse(input: &str) -> StructuredQuery {
 
     if lower.contains("duplicate") || lower.contains("dupe") {
         return StructuredQuery::FindDuplicates { path: "/".into() };
+    }
+
+    // Content search keywords
+    if lower.contains("containing") || lower.contains("content") || lower.contains("inside")
+        || lower.contains("with text") || lower.contains("mentions")
+    {
+        let skip = ["find","files","containing","content","inside","with","text","mentions","that","show","me"];
+        let terms = input
+            .split_whitespace()
+            .filter(|w| !skip.contains(&w.to_lowercase().as_str()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        return StructuredQuery::ContentSearch {
+            terms: if terms.is_empty() { input.into() } else { terms },
+        };
     }
 
     let extension = if lower.contains("video") || lower.contains(".mp4") { Some(".mp4".into()) }
@@ -159,5 +180,19 @@ mod tests {
         let json = serde_json::to_string(&q).unwrap();
         let q2: StructuredQuery = serde_json::from_str(&json).unwrap();
         assert!(matches!(q2, StructuredQuery::MetadataFilter { .. }));
+    }
+
+    #[test]
+    fn heuristic_parse_detects_content_search() {
+        let q = heuristic_parse("find files containing TODO");
+        assert!(matches!(q, StructuredQuery::ContentSearch { .. }));
+    }
+
+    #[test]
+    fn content_search_roundtrips_json() {
+        let q = StructuredQuery::ContentSearch { terms: "authentication".into() };
+        let json = serde_json::to_string(&q).unwrap();
+        let q2: StructuredQuery = serde_json::from_str(&json).unwrap();
+        assert!(matches!(q2, StructuredQuery::ContentSearch { .. }));
     }
 }
