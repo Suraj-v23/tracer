@@ -2,6 +2,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 mod transfer;
+mod graph;
 use transfer::commands::TransferAppState;
 use tauri::Manager;
 
