@@ -67,22 +67,34 @@ export function updateWireDimming(query: string): void {
     }
 }
 
+// Port dots: input-port left:-5px, output-port right:-5px, both 8px wide.
+// Port center relative to card edge = -5 + 4 = -1px.
+const PORT_INSET = -1;
+
+function _wireAnchors(el: HTMLElement): { rx: number; lx: number; cy: number } {
+    const left = parseFloat(el.style.left);
+    const top  = parseFloat(el.style.top);
+    const h    = el.offsetHeight || 80;
+    const w    = el.offsetWidth  || 200;
+    return {
+        rx: left + w + PORT_INSET, // output port center X (right side)
+        lx: left     + PORT_INSET, // input  port center X (left  side)
+        cy: top + h / 2,           // port center Y (both ports)
+    };
+}
+
 export function redrawWires(): void {
     if (!wireRegistry.length) return;
-
-    const NODE_W = 200;
 
     // Compute bounding box of all wire endpoints in workspace coords
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const w of wireRegistry) {
-        const x1 = parseFloat(w.fromEl.style.left) + NODE_W;
-        const y1 = parseFloat(w.fromEl.style.top)  + 40;
-        const x2 = parseFloat(w.toEl.style.left);
-        const y2 = parseFloat(w.toEl.style.top)    + 40;
-        if (x1 < minX) minX = x1; if (x1 > maxX) maxX = x1;
-        if (y1 < minY) minY = y1; if (y1 > maxY) maxY = y1;
-        if (x2 < minX) minX = x2; if (x2 > maxX) maxX = x2;
-        if (y2 < minY) minY = y2; if (y2 > maxY) maxY = y2;
+        const from = _wireAnchors(w.fromEl);
+        const to   = _wireAnchors(w.toEl);
+        if (from.rx < minX) minX = from.rx; if (from.rx > maxX) maxX = from.rx;
+        if (from.cy < minY) minY = from.cy; if (from.cy > maxY) maxY = from.cy;
+        if (to.lx   < minX) minX = to.lx;   if (to.lx   > maxX) maxX = to.lx;
+        if (to.cy   < minY) minY = to.cy;   if (to.cy   > maxY) maxY = to.cy;
     }
 
     minX -= MARGIN; minY -= MARGIN;
@@ -98,11 +110,12 @@ export function redrawWires(): void {
     const ctx = c.getContext('2d')!;
 
     for (const w of wireRegistry) {
-        // Translate coords to canvas-local space
-        const x1 = parseFloat(w.fromEl.style.left) + NODE_W - minX;
-        const y1 = parseFloat(w.fromEl.style.top)  + 40    - minY;
-        const x2 = parseFloat(w.toEl.style.left)          - minX;
-        const y2 = parseFloat(w.toEl.style.top)    + 40    - minY;
+        const from = _wireAnchors(w.fromEl);
+        const to   = _wireAnchors(w.toEl);
+        const x1 = from.rx - minX;
+        const y1 = from.cy - minY;
+        const x2 = to.lx   - minX;
+        const y2 = to.cy   - minY;
 
         const dist = Math.abs(x2 - x1) * 0.5;
         ctx.beginPath();
