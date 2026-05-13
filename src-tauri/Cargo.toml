@@ -32,6 +32,13 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
 hostname = "0.4"
+rusqlite = { version = "0.31", features = ["bundled-full"] }
+petgraph = "0.6"
+notify-debouncer-mini = "0.4"
+blake3 = "1"
+
+[dev-dependencies]
+tempfile = "3"
 
 
 [profile.release]
