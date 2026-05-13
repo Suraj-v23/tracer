@@ -5,6 +5,7 @@ import { centerWorkspace } from './canvas.js';
 import { bindCanvasEvents, bindGlobalEvents, handleNodeClick, bindNodeContextMenu, toast } from './events.js';
 import { initTransfer } from './transfer.js';
 import { UI_ICONS } from './icons.js';
+import { initGraphUI, triggerIndex } from './graphui.js';
 function _applyIcons() {
     const set = (id, html) => {
         const el = document.getElementById(id);
@@ -44,12 +45,18 @@ async function init() {
     bindCanvasEvents();
     bindGlobalEvents();
     centerWorkspace();
+    initGraphUI(() => {
+        const input = document.getElementById('graph-search-input');
+        if (input)
+            search.applySearch(input.value);
+    });
     // Transfer init is non-critical — don't block app startup
     initTransfer().catch(e => console.error('[transfer] init failed:', e));
     const params = new URLSearchParams(window.location.search);
     const pathParam = params.get('path');
     const startPath = pathParam || await api.getHomeDir().catch(() => '/Users');
     await nav.navigate(startPath);
+    triggerIndex(startPath).catch(() => { });
     document.getElementById('loading')?.classList.add('hidden');
 }
 init();

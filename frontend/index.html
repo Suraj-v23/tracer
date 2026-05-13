@@ -21,16 +21,23 @@
                 <div id="breadcrumb">/</div>
             </div>
 
-            <button id="btn-back" class="toolbar-btn" title="Go back (Backspace)" disabled>←</button>
-            <button id="btn-forward" class="toolbar-btn" title="Go forward (])" disabled>→</button>
+    <button id="btn-back" class="toolbar-btn" title="Go back (Backspace)" disabled>←</button>
+    <button id="btn-forward" class="toolbar-btn" title="Go forward (])" disabled>→</button>
 
-            <div id="search-wrap">
-                <span class="search-icon">⌕</span>
-                <input id="search-input" type="text" placeholder="Search…" autocomplete="off" spellcheck="false">
-                <button id="search-clear" class="hidden" title="Clear">✕</button>
-            </div>
+    <div id="graph-search-bar" data-mode="filter">
+        <div class="search-mode-pills">
+            <button id="search-mode-filter" class="mode-pill active" title="Filter visible nodes">Filter</button>
+            <button id="search-mode-search" class="mode-pill" title="Search entire index">Search</button>
+            <button id="search-mode-ask"    class="mode-pill" title="Ask AI a question">Ask AI</button>
+        </div>
+        <form id="graph-search-form" class="search-form" autocomplete="off">
+            <span class="search-icon">⌕</span>
+            <input id="graph-search-input" type="search" placeholder="Filter by name…" spellcheck="false">
+            <button id="search-clear" class="hidden" title="Clear" type="button">✕</button>
+        </form>
+    </div>
 
-            <select id="sort-select">
+    <select id="sort-select">
                 <option value="size-desc">Size ↓</option>
                 <option value="size-asc">Size ↑</option>
                 <option value="name-asc">Name A–Z</option>
@@ -144,6 +151,12 @@
         <div class="loading-text">Scanning…</div>
         <div class="loading-path" id="loading-path"></div>
     </div>
+
+    <!-- ── Graph results panel ── -->
+    <div id="graph-results-panel" class="hidden"></div>
+
+    <!-- ── Graph index status bar ── -->
+    <div id="graph-status-bar" class="graph-status-bar"></div>
 
     <!-- ── Toast notifications ── -->
     <div id="toast-container"></div>

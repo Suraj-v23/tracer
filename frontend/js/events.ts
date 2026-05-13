@@ -290,7 +290,7 @@ export function bindGlobalEvents(): void {
 
     document.getElementById('sidebar-close')!.addEventListener('click', closeSidebar);
 
-    const searchInput = document.getElementById('search-input') as HTMLInputElement;
+    const searchInput = document.getElementById('graph-search-input') as HTMLInputElement;
     searchInput.addEventListener('input', e =>
         applySearch((e.target as HTMLInputElement).value.trim())
     );
@@ -308,7 +308,7 @@ export function bindGlobalEvents(): void {
     });
 
     window.addEventListener('keydown', e => {
-        const si = document.getElementById('search-input') as HTMLInputElement;
+        const si = document.getElementById('graph-search-input') as HTMLInputElement;
         if (document.activeElement === si) {
             if (e.key === 'Escape') { si.blur(); si.value = ''; applySearch(''); }
             return;

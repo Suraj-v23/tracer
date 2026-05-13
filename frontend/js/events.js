@@ -278,7 +278,7 @@ export function bindGlobalEvents() {
             showDeleteModal(item);
     });
     document.getElementById('sidebar-close').addEventListener('click', closeSidebar);
-    const searchInput = document.getElementById('search-input');
+    const searchInput = document.getElementById('graph-search-input');
     searchInput.addEventListener('input', e => applySearch(e.target.value.trim()));
     document.getElementById('search-clear').addEventListener('click', () => {
         searchInput.value = '';
@@ -291,7 +291,7 @@ export function bindGlobalEvents() {
         applyFiltersAndRender();
     });
     window.addEventListener('keydown', e => {
-        const si = document.getElementById('search-input');
+        const si = document.getElementById('graph-search-input');
         if (document.activeElement === si) {
             if (e.key === 'Escape') {
                 si.blur();
