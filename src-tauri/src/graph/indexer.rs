@@ -59,7 +59,7 @@ pub fn insert_nodes(store: &Store, entries: &[walkdir::DirEntry], nodes: &[Graph
         }
     }
 
-    insert_duplicate_edges(store, nodes);
+    // Duplicate edges are computed on-demand via compute_duplicates(), not here.
 
     IndexStats { total, indexed, errors, watching: false }
 }
@@ -87,10 +87,6 @@ pub fn entry_to_node(path: &Path) -> Option<GraphNode> {
     let modified_secs = meta.modified().ok().and_then(to_secs);
     let created_secs  = meta.created().ok().and_then(to_secs);
 
-    let content_hash = if !is_dir && size < 50 * 1024 * 1024 {
-        hash_file(path)
-    } else { None };
-
     Some(GraphNode {
         id: 0,
         path: path.to_string_lossy().to_string(),
@@ -100,7 +96,7 @@ pub fn entry_to_node(path: &Path) -> Option<GraphNode> {
         extension,
         modified_secs,
         created_secs,
-        content_hash,
+        content_hash: None, // hashed on-demand in compute_duplicates, not at scan time
     })
 }
 
@@ -109,6 +105,61 @@ fn hash_file(path: &Path) -> Option<String> {
     let mut hasher = blake3::Hasher::new();
     hasher.update(&data);
     Some(hasher.finalize().to_hex().to_string())
+}
+
+/// Hash only files that share a size with at least one other file, then write
+/// duplicate edges. Call this on-demand (e.g. when user requests duplicates)
+/// rather than during the initial scan.
+pub fn compute_duplicates(store: &Store) {
+    use rusqlite::params;
+
+    // Fetch candidates: files whose size appears more than once
+    let candidates: Vec<(i64, String)> = match store.conn.prepare(r#"
+        SELECT id, path FROM nodes
+        WHERE kind='file' AND size > 0
+          AND size IN (SELECT size FROM nodes WHERE kind='file' AND size>0 GROUP BY size HAVING COUNT(*)>1)
+        ORDER BY size
+    "#) {
+        Ok(mut stmt) => stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map(|rows| rows.filter_map(|r| r.ok()).collect::<Vec<_>>())
+            .unwrap_or_default(),
+        Err(_) => return,
+    };
+
+    if candidates.is_empty() { return; }
+
+    // Hash candidates in parallel (CPU-bound, no store lock)
+    let hashed: Vec<(i64, String, String)> = candidates.par_iter()
+        .filter_map(|(id, path)| {
+            let hash = hash_file(Path::new(path))?;
+            Some((*id, path.clone(), hash))
+        })
+        .collect();
+
+    // Write hashes + duplicate edges in one transaction
+    let _ = store.conn.execute("BEGIN", []);
+    for (id, _, hash) in &hashed {
+        let _ = store.conn.execute(
+            "UPDATE nodes SET content_hash=?1 WHERE id=?2",
+            params![hash, id],
+        );
+    }
+
+    // Group by hash → insert bidirectional duplicate edges
+    let mut by_hash: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for (_, path, hash) in &hashed {
+        by_hash.entry(hash.as_str()).or_default().push(path.as_str());
+    }
+    for paths in by_hash.values().filter(|v| v.len() > 1) {
+        for i in 0..paths.len() {
+            for j in (i + 1)..paths.len() {
+                let _ = store.upsert_edge(paths[i], paths[j], "duplicate");
+                let _ = store.upsert_edge(paths[j], paths[i], "duplicate");
+            }
+        }
+    }
+    let _ = store.conn.execute("COMMIT", []);
 }
 
 pub fn insert_duplicate_edges_pub(store: &Store, nodes: &[GraphNode]) {
@@ -235,6 +286,8 @@ mod tests {
         let dir   = temp_tree();
         let store = Store::open_in_memory().unwrap();
         scan_and_index(dir.path(), &store).unwrap();
+        // Hashing is deferred — must call compute_duplicates explicitly
+        compute_duplicates(&store);
 
         let a_path = dir.path().join("a.txt").to_string_lossy().to_string();
         let dupes  = store.find_duplicates(&a_path).unwrap();

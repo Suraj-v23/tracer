@@ -88,6 +88,14 @@ pub async fn graph_get_duplicates(
     path: String,
     state: State<'_, GraphAppState>,
 ) -> Result<Vec<SearchResult>, String> {
+    let store_arc = state.store.clone();
+    // Compute hashes + edges on first request (runs in background, CPU-bound)
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Ok(store) = store_arc.lock() {
+            indexer::compute_duplicates(&store);
+        }
+    }).await.map_err(|e| e.to_string())?;
+
     let q = StructuredQuery::FindDuplicates { path };
     let store = state.store.lock().map_err(|e| e.to_string())?;
     execute(&q, &store)
@@ -149,12 +157,8 @@ pub async fn graph_set_root(
             }
         }
 
-        // Phase 4: duplicate edges — one transaction, brief lock.
-        if let Ok(store) = store_arc.lock() {
-            let _ = store.conn.execute("BEGIN", []);
-            indexer::insert_duplicate_edges_pub(&store, &nodes);
-            let _ = store.conn.execute("COMMIT", []);
-        }
+        // Duplicate detection deferred to first user request — skipped at scan time
+        // to avoid saturating CPU with blake3 hashing across the whole filesystem.
 
         if let Ok(mut s) = stats_arc.lock() { s.indexed = indexed; s.watching = true; }
         app.emit("graph-index-complete", ()).ok();
