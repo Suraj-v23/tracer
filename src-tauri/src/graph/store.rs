@@ -192,7 +192,12 @@ impl Store {
         Ok(results)
     }
 
+    /// Find duplicates of a specific file (by path). If path is "/" returns
+    /// all duplicate files across the entire index.
     pub fn find_duplicates(&self, path: &str) -> SqlResult<Vec<SearchResult>> {
+        if path == "/" {
+            return self.find_all_duplicates();
+        }
         let mut stmt = self.conn.prepare(r#"
             SELECT n2.path, n2.name, n2.kind, n2.size, n2.extension, n2.modified_secs
             FROM nodes n1
@@ -201,6 +206,27 @@ impl Store {
             WHERE n1.path = ?1
         "#)?;
         let results = stmt.query_map(params![path], row_to_result)?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
+
+    /// Return all files that share a content_hash with at least one other file.
+    pub fn find_all_duplicates(&self) -> SqlResult<Vec<SearchResult>> {
+        let mut stmt = self.conn.prepare(r#"
+            SELECT path, name, kind, size, extension, modified_secs
+            FROM nodes
+            WHERE content_hash IS NOT NULL
+              AND content_hash IN (
+                  SELECT content_hash FROM nodes
+                  WHERE content_hash IS NOT NULL
+                  GROUP BY content_hash
+                  HAVING COUNT(*) > 1
+              )
+            ORDER BY content_hash, size DESC
+            LIMIT 200
+        "#)?;
+        let results = stmt.query_map([], row_to_result)?
             .filter_map(|r| r.ok())
             .collect();
         Ok(results)
