@@ -424,6 +424,15 @@ pub fn run() {
                 device_name,
             });
 
+            let db_path = app.path().app_data_dir()
+                .map(|d| d.join("graph.db"))
+                .unwrap_or_else(|_| std::path::PathBuf::from("graph.db"));
+
+            match graph::GraphAppState::new(&db_path) {
+                Ok(graph_state) => { app.manage(graph_state); }
+                Err(e) => eprintln!("[graph] failed to init: {e}"),
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -439,6 +448,12 @@ pub fn run() {
             transfer::commands::accept_transfer,
             transfer::commands::reject_transfer,
             transfer::commands::cancel_transfer,
+            graph::graph_search,
+            graph::graph_get_related,
+            graph::graph_get_duplicates,
+            graph::graph_index_status,
+            graph::graph_set_root,
+            graph::graph_set_llm,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tracer");

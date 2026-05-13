@@ -36,7 +36,9 @@ impl GraphAppState {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async fn resolve_query(query_str: &str, state: &GraphAppState) -> StructuredQuery {
-    if let Some(config) = state.llm_config.lock().unwrap().clone() {
+    // Clone the config out before awaiting so the MutexGuard is not held across an await point.
+    let maybe_config = state.llm_config.lock().unwrap().clone();
+    if let Some(config) = maybe_config {
         if let Ok(q) = llm::nl_to_query(query_str, &config).await {
             return q;
         }
