@@ -1187,3 +1187,69 @@ kbd {
 }
 
 .graph-status-bar.indexing { color: var(--accent); }
+
+/* ── Deep index panel ───────────────────────────────────────────── */
+#graph-indexed-panel {
+    position: fixed;
+    bottom: 40px;
+    right: 16px;
+    width: 300px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 150;
+    overflow: hidden;
+}
+
+.graph-indexed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+}
+
+.graph-indexed-header button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.graph-indexed-folder {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.gif-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.gif-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+
+.gif-remove:hover { color: var(--danger); }
+
+.graph-no-folders {
+    padding: 16px 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-align: center;
+}

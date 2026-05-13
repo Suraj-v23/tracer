@@ -9,6 +9,7 @@ import * as store from './store.js';
 import * as api from './api.js';
 import { showSendPanel } from './transfer.js';
 import { UI_ICONS } from './icons.js';
+import { addIndexedFolder } from './graphui.js';
 
 export function toast(msg: string, type = ''): void {
     const el       = document.createElement('div');
@@ -240,6 +241,17 @@ export function bindGlobalEvents(): void {
         await showSendPanel(item.path, item.name);
     });
 
+    document.getElementById('ctx-deep-index')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+        const item = state.ctxTarget;
+        if (!item || item.type !== 'directory') return;
+        await addIndexedFolder(item.path);
+    });
+
+    document.getElementById('graph-indexed-close')?.addEventListener('click', () => {
+        document.getElementById('graph-indexed-panel')?.classList.add('hidden');
+    });
+
     document.getElementById('send-panel-close')!.addEventListener('click', () => {
         document.getElementById('send-panel')!.classList.add('hidden');
     });
@@ -408,6 +420,8 @@ export function bindNodeContextMenu(item: FsNode, e: MouseEvent): void {
     document.getElementById('ctx-open')!.classList.toggle('hidden',     !isDir);
     document.getElementById('ctx-open-new')!.classList.toggle('hidden', !isDir);
     document.getElementById('ctx-collapse')!.classList.toggle('hidden', !isExpanded);
+    const deepIdx = document.getElementById('ctx-deep-index');
+    if (deepIdx) deepIdx.style.display = item.type === 'directory' ? '' : 'none';
     const ctxMenu = document.getElementById('ctx-menu')!;
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth  - 190) + 'px';
     ctxMenu.style.top  = Math.min(e.clientY, window.innerHeight - 180) + 'px';
