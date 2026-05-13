@@ -97,45 +97,51 @@ pub async fn graph_set_root(
     let stats_arc = state.stats.clone();
 
     std::thread::spawn(move || {
-        // Phase 1: collect file metadata WITHOUT holding the store lock.
-        // This is the slow part (disk I/O) — searches can proceed freely.
+        // Phase 1: collect from disk — no lock needed, slow I/O.
         let (entries, nodes) = indexer::collect_nodes(Path::new(&path));
         let total = nodes.len();
-        if let Ok(mut stats) = stats_arc.lock() { stats.total = total; }
+        if let Ok(mut s) = stats_arc.lock() { s.total = total; }
 
-        // Phase 2: insert in 500-node batches, releasing the lock between
-        // batches so concurrent graph_search calls are never blocked for long.
+        // Phase 2: node inserts in 1000-node batches wrapped in SQLite
+        // transactions (~100× faster than auto-commit). Lock released between
+        // batches so graph_search is never blocked for more than ~50ms.
         let mut indexed = 0usize;
-        for chunk_nodes in nodes.chunks(500) {
-            // Find the matching entries slice for parent-edge insertion.
-            // We reuse insert_nodes on sub-slices; duplicate edges are added
-            // at the end over the full node set to avoid missed cross-chunk pairs.
+        for chunk in nodes.chunks(1000) {
             if let Ok(store) = store_arc.lock() {
-                for node in chunk_nodes {
+                let _ = store.conn.execute("BEGIN", []);
+                for node in chunk {
                     if store.upsert_node(node).is_ok() { indexed += 1; }
                 }
-            } // lock released here — searches can proceed
-            if let Ok(mut stats) = stats_arc.lock() { stats.indexed = indexed; }
-        }
-
-        // Insert parent + duplicate edges in one final brief lock.
-        if let Ok(store) = store_arc.lock() {
-            for entry in &entries {
-                if let Some(parent) = entry.path().parent() {
-                    let _ = store.upsert_edge(
-                        &entry.path().to_string_lossy(),
-                        &parent.to_string_lossy(),
-                        "parent",
-                    );
-                }
+                let _ = store.conn.execute("COMMIT", []);
             }
-            indexer::insert_duplicate_edges_pub(&store, &nodes);
+            if let Ok(mut s) = stats_arc.lock() { s.indexed = indexed; }
         }
 
-        if let Ok(mut stats) = stats_arc.lock() {
-            stats.indexed  = indexed;
-            stats.watching = true;
+        // Phase 3: parent edges in 2000-entry batches, each its own transaction.
+        for chunk in entries.chunks(2000) {
+            if let Ok(store) = store_arc.lock() {
+                let _ = store.conn.execute("BEGIN", []);
+                for entry in chunk {
+                    if let Some(parent) = entry.path().parent() {
+                        let _ = store.upsert_edge(
+                            &entry.path().to_string_lossy(),
+                            &parent.to_string_lossy(),
+                            "parent",
+                        );
+                    }
+                }
+                let _ = store.conn.execute("COMMIT", []);
+            }
         }
+
+        // Phase 4: duplicate edges — one transaction, brief lock.
+        if let Ok(store) = store_arc.lock() {
+            let _ = store.conn.execute("BEGIN", []);
+            indexer::insert_duplicate_edges_pub(&store, &nodes);
+            let _ = store.conn.execute("COMMIT", []);
+        }
+
+        if let Ok(mut s) = stats_arc.lock() { s.indexed = indexed; s.watching = true; }
         app.emit("graph-index-complete", ()).ok();
         indexer::start_watcher(path, store_arc, app);
     });
