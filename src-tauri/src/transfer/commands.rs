@@ -29,7 +29,16 @@ pub fn unique_path(dir: &str, filename: &str) -> String {
             return candidate;
         }
     }
-    path
+    // All 99 numbered variants exist — use UUID suffix to guarantee uniqueness
+    let p = std::path::Path::new(filename);
+    let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or(filename);
+    let ext = p.extension().and_then(|s| s.to_str());
+    let uid = uuid::Uuid::new_v4().simple().to_string();
+    let name = match ext {
+        Some(e) => format!("{}_{}.{}", stem, uid, e),
+        None => format!("{}_{}", stem, uid),
+    };
+    format!("{}/{}", base, name)
 }
 
 #[tauri::command]
@@ -191,7 +200,11 @@ async fn stream_file(
         return Err(format!("Sender returned HTTP {}", response.status()));
     }
 
-    let dest_path = unique_path(dest_dir, filename);
+    let safe_filename = std::path::Path::new(filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("received_file");
+    let dest_path = unique_path(dest_dir, safe_filename);
     let mut file = tokio::fs::File::create(&dest_path)
         .await
         .map_err(|e| format!("Cannot create file: {}", e))?;

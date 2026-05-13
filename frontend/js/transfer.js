@@ -47,7 +47,7 @@ async function sendToPeer(peer) {
         const session = await api.startTransfer(filePath, peer.id);
         _currentSession = session;
         document.getElementById('send-code').textContent = session.code;
-        status.textContent = `Waiting for ${peer.name} to accept…`;
+        status.textContent = `Offer delivered to ${peer.name}. You can close this panel — transfer runs in the background.`;
     }
     catch (e) {
         status.textContent = `Error: ${e}`;

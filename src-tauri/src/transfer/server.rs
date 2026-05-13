@@ -18,7 +18,6 @@ use crate::transfer::{now_secs, TransferSession, TransferState};
 pub struct ServerState {
     pub sessions: Arc<Mutex<HashMap<String, TransferSession>>>,
     pub app_handle: tauri::AppHandle,
-    pub device_name: String,
 }
 
 #[derive(Deserialize)]
@@ -34,14 +33,14 @@ pub struct OfferPayload {
 pub async fn start_server(
     sessions: Arc<Mutex<HashMap<String, TransferSession>>>,
     app_handle: tauri::AppHandle,
-    device_name: String,
+    _device_name: String,
 ) -> u16 {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:0")
         .await
         .expect("Failed to bind transfer server");
     let port = listener.local_addr().unwrap().port();
 
-    let state = ServerState { sessions, app_handle, device_name };
+    let state = ServerState { sessions, app_handle };
     let app = Router::new()
         .route("/transfer/offer", post(handle_offer))
         .route("/transfer/:session_id/file", get(handle_file))

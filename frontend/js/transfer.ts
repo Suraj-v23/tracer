@@ -54,7 +54,7 @@ async function refreshPeerList(): Promise<void> {
 }
 
 async function sendToPeer(peer: PeerInfo): Promise<void> {
-    const filePath = (state as any).ctxSendPath as string;
+    const filePath = state.ctxSendPath;
     if (!filePath) return;
 
     const status = document.getElementById('send-status')!;
@@ -64,7 +64,7 @@ async function sendToPeer(peer: PeerInfo): Promise<void> {
         const session = await api.startTransfer(filePath, peer.id);
         _currentSession = session;
         document.getElementById('send-code')!.textContent = session.code;
-        status.textContent = `Waiting for ${peer.name} to accept…`;
+        status.textContent = `Offer delivered to ${peer.name}. You can close this panel — transfer runs in the background.`;
     } catch (e) {
         status.textContent = `Error: ${e}`;
         toast(`Transfer failed: ${e}`, 'error');
