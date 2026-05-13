@@ -20,6 +20,9 @@ export const state = {
     moveMode:   false,
     moveSource: null as FsNode | null,
 
+    // Send (file sharing) path
+    ctxSendPath: '',
+
     // Selected node element
     selectedNode: null as HTMLElement | null,
 

@@ -7,6 +7,7 @@ import { centerWorkspace, updateTransform, redrawWires } from './canvas.js';
 import { expandNodeInPlace, getNodesLayer, collapseExpansion, popAndCollapse } from './nodes.js';
 import * as store from './store.js';
 import * as api from './api.js';
+import { showSendPanel } from './transfer.js';
 
 export function toast(msg: string, type = ''): void {
     const el       = document.createElement('div');
@@ -225,6 +226,17 @@ export function bindGlobalEvents(): void {
             document.getElementById('move-indicator')!.classList.remove('hidden');
         }
         document.getElementById('ctx-menu')!.classList.add('hidden');
+    });
+
+    document.getElementById('ctx-send')!.addEventListener('click', async () => {
+        const item = state.ctxTarget;
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+        if (!item || item.type === 'directory') {
+            toast('Select a file to send (folders not supported in v1)', '');
+            return;
+        }
+        (state as any).ctxSendPath = item.path;
+        await showSendPanel(item.path, item.name);
     });
 
     document.getElementById('btn-new-file')?.addEventListener('click', () =>

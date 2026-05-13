@@ -4,25 +4,20 @@ import * as search from './search.js';
 import { centerWorkspace } from './canvas.js';
 import { bindCanvasEvents, bindGlobalEvents, handleNodeClick, bindNodeContextMenu } from './events.js';
 import { initTransfer } from './transfer.js';
-
-async function init(): Promise<void> {
+async function init() {
     nav.setOnNavigate(_node => {
         search.applyFiltersAndRender();
         search.updateStats();
     });
-
     search.setCallbacks(handleNodeClick, bindNodeContextMenu);
-
     bindCanvasEvents();
     bindGlobalEvents();
     await initTransfer();
     centerWorkspace();
-
-    const params    = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.search);
     const pathParam = params.get('path');
     const startPath = pathParam || await api.getHomeDir().catch(() => '/Users');
     await nav.navigate(startPath);
     document.getElementById('loading')?.classList.add('hidden');
 }
-
 init();
