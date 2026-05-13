@@ -39,7 +39,9 @@ pub struct Store {
 impl Store {
     pub fn open(db_path: &Path) -> SqlResult<Self> {
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent).ok();
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("[graph/store] could not create db dir: {e}");
+            }
         }
         let conn = Connection::open(db_path)?;
         let store = Self { conn };
@@ -121,7 +123,7 @@ impl Store {
     pub fn get_node_id(&self, path: &str) -> SqlResult<Option<i64>> {
         let mut stmt = self.conn.prepare_cached("SELECT id FROM nodes WHERE path=?1")?;
         let mut rows = stmt.query(params![path])?;
-        Ok(rows.next()?.map(|r| r.get_unwrap(0)))
+        Ok(rows.next()?.map(|r| r.get(0)).transpose()?)
     }
 
     pub fn node_count(&self) -> SqlResult<i64> {
@@ -227,7 +229,7 @@ impl Store {
     pub fn get_setting(&self, key: &str) -> SqlResult<Option<String>> {
         let mut stmt = self.conn.prepare_cached("SELECT value FROM settings WHERE key=?1")?;
         let mut rows = stmt.query(params![key])?;
-        Ok(rows.next()?.map(|r| r.get_unwrap(0)))
+        Ok(rows.next()?.map(|r| r.get(0)).transpose()?)
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> SqlResult<()> {
