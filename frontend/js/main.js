@@ -12,8 +12,9 @@ async function init() {
     search.setCallbacks(handleNodeClick, bindNodeContextMenu);
     bindCanvasEvents();
     bindGlobalEvents();
-    await initTransfer();
     centerWorkspace();
+    // Transfer init is non-critical — don't block app startup
+    initTransfer().catch(e => console.error('[transfer] init failed:', e));
     const params = new URLSearchParams(window.location.search);
     const pathParam = params.get('path');
     const startPath = pathParam || await api.getHomeDir().catch(() => '/Users');
