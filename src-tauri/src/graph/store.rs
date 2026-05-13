@@ -96,6 +96,16 @@ impl Store {
                 key   TEXT PRIMARY KEY,
                 value TEXT
             );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS fts_content USING fts5(
+                content,
+                tokenize='porter ascii'
+            );
+
+            CREATE TABLE IF NOT EXISTS fts_node_map (
+                rowid   INTEGER PRIMARY KEY,
+                node_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE
+            );
         "#)
     }
 
@@ -265,6 +275,102 @@ impl Store {
         )?;
         Ok(())
     }
+
+    // ── FTS Content Indexing ──────────────────────────────────────────────────
+
+    pub fn index_content(&self, node_id: i64, text: &str) -> SqlResult<()> {
+        // Remove old entry if exists
+        let old_rowid: Option<i64> = {
+            let mut s = self.conn.prepare_cached(
+                "SELECT rowid FROM fts_node_map WHERE node_id=?1"
+            )?;
+            let mut rows = s.query(params![node_id])?;
+            rows.next()?.map(|r| r.get(0)).transpose()?
+        };
+        if let Some(rowid) = old_rowid {
+            self.conn.execute("DELETE FROM fts_content WHERE rowid=?1", params![rowid])?;
+            self.conn.execute("DELETE FROM fts_node_map WHERE node_id=?1", params![node_id])?;
+        }
+
+        self.conn.execute(
+            "INSERT INTO fts_content(content) VALUES (?1)",
+            params![text],
+        )?;
+        let rowid = self.conn.last_insert_rowid();
+        self.conn.execute(
+            "INSERT INTO fts_node_map(rowid, node_id) VALUES (?1, ?2)",
+            params![rowid, node_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn content_search(&self, query: &str) -> SqlResult<Vec<SearchResult>> {
+        let mut stmt = self.conn.prepare(r#"
+            SELECT n.path, n.name, n.kind, n.size, n.extension, n.modified_secs,
+                   snippet(fts_content, 0, '[', ']', '...', 16) AS snip
+            FROM fts_content f
+            JOIN fts_node_map m ON m.rowid = f.rowid
+            JOIN nodes n ON n.id = m.node_id
+            WHERE fts_content MATCH ?1
+            ORDER BY rank
+            LIMIT 100
+        "#)?;
+        let results = stmt.query_map(params![query], |row| {
+            let size: i64 = row.get(3)?;
+            Ok(SearchResult {
+                path:          row.get(0)?,
+                name:          row.get(1)?,
+                kind:          row.get(2)?,
+                size:          size as u64,
+                size_human:    format_size(size as u64),
+                extension:     row.get(4)?,
+                modified_secs: row.get(5)?,
+                snippet:       row.get(6)?,
+                score:         1.0,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+        Ok(results)
+    }
+
+    // ── Indexed Folders ───────────────────────────────────────────────────────
+
+    pub fn add_indexed_folder(&self, path: &str) -> SqlResult<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        self.conn.execute(
+            "INSERT OR REPLACE INTO indexed_folders(path, added_secs) VALUES (?1, ?2)",
+            params![path, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_indexed_folder(&self, path: &str) -> SqlResult<()> {
+        self.conn.execute(
+            "DELETE FROM indexed_folders WHERE path=?1",
+            params![path],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_indexed_folders(&self) -> SqlResult<Vec<String>> {
+        let mut stmt = self.conn.prepare("SELECT path FROM indexed_folders ORDER BY added_secs")?;
+        let results = stmt.query_map([], |r| r.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
+
+    pub fn is_folder_indexed(&self, path: &str) -> SqlResult<bool> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT 1 FROM indexed_folders WHERE ?1 LIKE path || '%' LIMIT 1"
+        )?;
+        let mut rows = stmt.query(params![path])?;
+        Ok(rows.next()?.is_some())
+    }
 }
 
 fn row_to_result(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchResult> {
@@ -366,5 +472,39 @@ mod tests {
         assert_eq!(format_size(500), "500 B");
         assert_eq!(format_size(1_500), "1.5 KB");
         assert_eq!(format_size(1_500_000), "1.5 MB");
+    }
+
+    #[test]
+    fn fts_index_and_search() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/readme.md", "readme.md", "file", 100)).unwrap();
+        let id = store.get_node_id("/a/readme.md").unwrap().unwrap();
+        store.index_content(id, "# Hello World\nThis file talks about authentication tokens.").unwrap();
+        let results = store.content_search("authentication").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "readme.md");
+        assert!(results[0].snippet.is_some());
+    }
+
+    #[test]
+    fn fts_returns_empty_for_no_match() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/readme.md", "readme.md", "file", 100)).unwrap();
+        let id = store.get_node_id("/a/readme.md").unwrap().unwrap();
+        store.index_content(id, "hello world").unwrap();
+        let results = store.content_search("zxqwerty").unwrap();
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn indexed_folders_crud() {
+        let store = Store::open_in_memory().unwrap();
+        store.add_indexed_folder("/home/projects").unwrap();
+        let folders = store.list_indexed_folders().unwrap();
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0], "/home/projects");
+        store.remove_indexed_folder("/home/projects").unwrap();
+        let folders = store.list_indexed_folders().unwrap();
+        assert_eq!(folders.len(), 0);
     }
 }
