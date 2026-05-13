@@ -8,10 +8,7 @@ export const TYPE_MAP: Record<string, string[]> = {
     archive: ['.zip','.rar','.7z','.tar','.gz','.bz2','.xz','.iso'],
 };
 
-export const TYPE_ICONS: Record<string, string> = {
-    directory: '📁', image: '🖼', video: '🎬', audio: '🎵',
-    code: '💻', doc: '📄', archive: '📦', other: '📎',
-};
+export { FILE_ICONS as TYPE_ICONS } from './icons.js';
 
 export const COLORS: Record<string, string> = {
     folder:  '#6b9fd4',

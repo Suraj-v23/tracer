@@ -7,7 +7,7 @@ export function openSidebar(item: FsNode): void {
     const isDir = item.type === 'directory';
     const cat   = getFileCategory(item);
 
-    _set('sb-icon',       TYPE_ICONS[cat] ?? '📎');
+    _setHtml('sb-icon',   TYPE_ICONS[cat] ?? '📎');
     _set('sb-name',       item.name);
     _set('sb-size-badge', item.size_human);
     _set('sb-type',       isDir ? 'Folder' : (item.extension ?? 'file').replace('.', '').toUpperCase());
@@ -46,4 +46,9 @@ export function setSidebarItem(item: FsNode): void {
 function _set(id: string, value: string): void {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
+}
+
+function _setHtml(id: string, value: string): void {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = value;
 }

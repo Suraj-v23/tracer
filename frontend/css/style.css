@@ -125,6 +125,12 @@ body {
     font-size: 13px;
     flex-shrink: 0;
 }
+.node-icon img.icon-img {
+    width: 13px;
+    height: 13px;
+    object-fit: contain;
+    vertical-align: middle;
+}
 
 .node-title {
     overflow: hidden;
@@ -400,6 +406,11 @@ body {
 #sb-icon {
     font-size: 1.8rem;
     line-height: 1;
+}
+#sb-icon img.icon-img {
+    width: 1.8rem;
+    height: 1.8rem;
+    object-fit: contain;
 }
 
 #sb-name {

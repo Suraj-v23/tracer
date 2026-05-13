@@ -8,6 +8,7 @@ import { expandNodeInPlace, getNodesLayer, collapseExpansion, popAndCollapse } f
 import * as store from './store.js';
 import * as api from './api.js';
 import { showSendPanel } from './transfer.js';
+import { UI_ICONS } from './icons.js';
 
 export function toast(msg: string, type = ''): void {
     const el       = document.createElement('div');
@@ -124,7 +125,7 @@ function showCreateModal(type: 'file' | 'folder', basePath: string): void {
     const icon  = document.getElementById('create-icon')!;
     const title = document.getElementById('create-title')!;
     const input = document.getElementById('create-input') as HTMLInputElement;
-    icon.textContent  = type === 'file' ? '📄' : '📁';
+    icon.innerHTML    = type === 'file' ? UI_ICONS.newFile : UI_ICONS.newFolder;
     title.textContent = type === 'file' ? 'New File' : 'New Folder';
     input.value = '';
     document.getElementById('create-modal')!.classList.remove('hidden');
@@ -176,14 +177,14 @@ export function bindGlobalEvents(): void {
         if ((sourceEl as any)._expanded) { toast('Already expanded', ''); return; }
 
         try {
-            const data = await api.getFilesystem(item.path, 2);
+            const data = await api.getFilesystem(item.path, 2, true);
             if (data.children?.length) {
                 expandNodeInPlace(data.children, sourceEl, handleNodeClick, bindNodeContextMenu);
             } else {
-                toast('Empty folder', '');
+                toast('Folder is empty', '');
             }
         } catch (err) {
-            toast('Error: ' + err, 'error');
+            toast(String(err), 'error');
         }
     });
 

@@ -1,4 +1,5 @@
 import type { FsNode } from './types.js';
+import { UI_ICONS } from './icons.js';
 
 function _invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
     const tauri = (window as any).__TAURI_INTERNALS__;
@@ -6,7 +7,7 @@ function _invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> 
         const msg = document.getElementById('loading');
         if (msg) {
             msg.innerHTML = '<div style="padding:40px;text-align:center;color:#fff">' +
-                '<div style="font-size:2rem;margin-bottom:16px">⚠️</div>' +
+                `<div style="font-size:2rem;margin-bottom:16px">${UI_ICONS.warning}</div>` +
                 '<div>Run inside Tauri: <code>npm run dev</code></div></div>';
             msg.classList.remove('hidden');
         }
