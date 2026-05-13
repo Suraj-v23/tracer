@@ -2,6 +2,7 @@ pub mod store;
 pub mod query;
 pub mod indexer;
 pub mod llm;
+pub mod content;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
