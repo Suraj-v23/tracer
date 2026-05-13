@@ -217,7 +217,13 @@ async fn get_filesystem(path: Option<String>, depth: Option<usize>, force: Optio
             return Err(format!("Path not found: {req}"));
         }
 
-        let children = scan_dir(&p, 0, depth).unwrap_or_default();
+        let children = match scan_dir(&p, 0, depth) {
+            Some(c) => c,
+            None => match std::fs::read_dir(&p) {
+                Err(e) => return Err(format!("Cannot read directory: {e}")),
+                Ok(_)  => vec![],
+            },
+        };
         // Root size is sum of children — avoids an extra full-tree walk.
         let size: u64 = children.iter().map(|c| c.size).sum();
 

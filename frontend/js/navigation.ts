@@ -4,9 +4,14 @@ import * as store from './store.js';
 import * as api from './api.js';
 
 let _onNavigate: ((node: FsNode) => void) | null = null;
+let _onError: ((msg: string) => void) | null = null;
 
 export function setOnNavigate(fn: (node: FsNode) => void): void {
     _onNavigate = fn;
+}
+
+export function setOnError(fn: (msg: string) => void): void {
+    _onError = fn;
 }
 
 export function canGoBack():    boolean { return state.backStack.length > 0; }
@@ -48,6 +53,7 @@ export async function navigate(path: string): Promise<void> {
         _setCurrentAndRender(path, node);
     } catch (e) {
         console.error(e);
+        _onError?.(String(e));
     } finally {
         hideLoading();
     }
