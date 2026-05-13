@@ -239,6 +239,10 @@ export function bindGlobalEvents(): void {
         await showSendPanel(item.path, item.name);
     });
 
+    document.getElementById('send-panel-close')!.addEventListener('click', () => {
+        document.getElementById('send-panel')!.classList.add('hidden');
+    });
+
     document.getElementById('btn-new-file')?.addEventListener('click', () =>
         showCreateModal('file', state.currentPath)
     );
@@ -338,6 +342,8 @@ export function bindGlobalEvents(): void {
             closeSidebar();
             document.getElementById('ctx-menu')!.classList.add('hidden');
             document.getElementById('confirm-modal')!.classList.add('hidden');
+            document.getElementById('send-panel')!.classList.add('hidden');
+            document.getElementById('incoming-overlay')!.classList.add('hidden');
         }
         if (e.key === 'r' || e.key === 'R') centerWorkspace();
         if (e.key === 'F5' || ((e.metaKey || e.ctrlKey) && e.key === 'r')) {

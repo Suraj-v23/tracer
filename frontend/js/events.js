@@ -235,6 +235,9 @@ export function bindGlobalEvents() {
         state.ctxSendPath = item.path;
         await showSendPanel(item.path, item.name);
     });
+    document.getElementById('send-panel-close').addEventListener('click', () => {
+        document.getElementById('send-panel').classList.add('hidden');
+    });
     document.getElementById('btn-new-file')?.addEventListener('click', () => showCreateModal('file', state.currentPath));
     document.getElementById('btn-new-folder')?.addEventListener('click', () => showCreateModal('folder', state.currentPath));
     document.getElementById('btn-move-cancel')?.addEventListener('click', exitMoveMode);
@@ -327,6 +330,8 @@ export function bindGlobalEvents() {
             closeSidebar();
             document.getElementById('ctx-menu').classList.add('hidden');
             document.getElementById('confirm-modal').classList.add('hidden');
+            document.getElementById('send-panel').classList.add('hidden');
+            document.getElementById('incoming-overlay').classList.add('hidden');
         }
         if (e.key === 'r' || e.key === 'R')
             centerWorkspace();
