@@ -371,6 +371,56 @@ impl Store {
         let mut rows = stmt.query(params![path])?;
         Ok(rows.next()?.is_some())
     }
+
+    // ── Import Graph Queries ──────────────────────────────────────────────────
+
+    pub fn get_imports(&self, path: &str) -> SqlResult<Vec<SearchResult>> {
+        let mut stmt = self.conn.prepare(r#"
+            SELECT n2.path, n2.name, n2.kind, n2.size, n2.extension, n2.modified_secs
+            FROM nodes n1
+            JOIN edges e  ON e.from_id = n1.id AND e.kind = 'imports'
+            JOIN nodes n2 ON n2.id = e.to_id
+            WHERE n1.path = ?1
+            ORDER BY n2.name
+            LIMIT 200
+        "#)?;
+        let results = stmt.query_map(params![path], row_to_result)?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
+
+    pub fn get_importers(&self, path: &str) -> SqlResult<Vec<SearchResult>> {
+        let mut stmt = self.conn.prepare(r#"
+            SELECT n2.path, n2.name, n2.kind, n2.size, n2.extension, n2.modified_secs
+            FROM nodes n1
+            JOIN edges e  ON e.to_id = n1.id AND e.kind = 'imports'
+            JOIN nodes n2 ON n2.id = e.from_id
+            WHERE n1.path = ?1
+            ORDER BY n2.name
+            LIMIT 200
+        "#)?;
+        let results = stmt.query_map(params![path], row_to_result)?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
+
+    pub fn import_count(&self, path: &str) -> SqlResult<i64> {
+        self.conn.query_row(
+            "SELECT COUNT(*) FROM nodes n JOIN edges e ON e.from_id=n.id AND e.kind='imports' WHERE n.path=?1",
+            params![path],
+            |r| r.get(0),
+        )
+    }
+
+    pub fn importer_count(&self, path: &str) -> SqlResult<i64> {
+        self.conn.query_row(
+            "SELECT COUNT(*) FROM nodes n JOIN edges e ON e.to_id=n.id AND e.kind='imports' WHERE n.path=?1",
+            params![path],
+            |r| r.get(0),
+        )
+    }
 }
 
 fn row_to_result(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchResult> {
@@ -506,5 +556,45 @@ mod tests {
         store.remove_indexed_folder("/home/projects").unwrap();
         let folders = store.list_indexed_folders().unwrap();
         assert_eq!(folders.len(), 0);
+    }
+
+    #[test]
+    fn get_imports_returns_direct_deps() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/main.ts",  "main.ts",  "file", 100)).unwrap();
+        store.upsert_node(&make_node("/a/utils.ts", "utils.ts", "file", 50)).unwrap();
+        store.upsert_node(&make_node("/a/types.ts", "types.ts", "file", 30)).unwrap();
+        store.upsert_edge("/a/main.ts", "/a/utils.ts", "imports").unwrap();
+        store.upsert_edge("/a/main.ts", "/a/types.ts", "imports").unwrap();
+        let imports = store.get_imports("/a/main.ts").unwrap();
+        assert_eq!(imports.len(), 2);
+        let names: Vec<_> = imports.iter().map(|r| r.name.as_str()).collect();
+        assert!(names.contains(&"utils.ts"));
+        assert!(names.contains(&"types.ts"));
+    }
+
+    #[test]
+    fn get_importers_returns_reverse_deps() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/main.ts",  "main.ts",  "file", 100)).unwrap();
+        store.upsert_node(&make_node("/a/lib.ts",   "lib.ts",   "file", 100)).unwrap();
+        store.upsert_node(&make_node("/a/utils.ts", "utils.ts", "file",  50)).unwrap();
+        store.upsert_edge("/a/main.ts", "/a/utils.ts", "imports").unwrap();
+        store.upsert_edge("/a/lib.ts",  "/a/utils.ts", "imports").unwrap();
+        let importers = store.get_importers("/a/utils.ts").unwrap();
+        assert_eq!(importers.len(), 2);
+        let names: Vec<_> = importers.iter().map(|r| r.name.as_str()).collect();
+        assert!(names.contains(&"main.ts"));
+        assert!(names.contains(&"lib.ts"));
+    }
+
+    #[test]
+    fn import_count_on_node() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/main.ts",  "main.ts",  "file", 100)).unwrap();
+        store.upsert_node(&make_node("/a/utils.ts", "utils.ts", "file",  50)).unwrap();
+        store.upsert_edge("/a/main.ts", "/a/utils.ts", "imports").unwrap();
+        assert_eq!(store.import_count("/a/main.ts").unwrap(),    1);
+        assert_eq!(store.importer_count("/a/utils.ts").unwrap(), 1);
     }
 }
