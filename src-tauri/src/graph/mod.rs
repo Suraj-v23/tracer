@@ -4,6 +4,7 @@ pub mod indexer;
 pub mod llm;
 pub mod content;
 pub mod parser;
+pub mod embedder;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
