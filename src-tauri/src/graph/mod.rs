@@ -19,19 +19,24 @@ use llm::LlmConfig;
 
 pub struct GraphAppState {
     pub store:        Arc<Mutex<Store>>,
-    pub llm_config:   Arc<Mutex<Option<LlmConfig>>>,
+    pub llm_config:   Arc<Mutex<Option<llm::LlmConfig>>>,
     pub indexed_root: Arc<Mutex<Option<String>>>,
     pub stats:        Arc<Mutex<indexer::IndexStats>>,
+    pub embed_config: Arc<Mutex<Option<embedder::EmbedConfig>>>,
+    pub hnsw:         Arc<Mutex<usearch::Index>>,
 }
 
 impl GraphAppState {
     pub fn new(db_path: &Path) -> Result<Self, String> {
         let store = Store::open(db_path).map_err(|e| e.to_string())?;
+        let hnsw = embedder::load_hnsw_from_store(&store);
         Ok(Self {
             store:        Arc::new(Mutex::new(store)),
             llm_config:   Arc::new(Mutex::new(None)),
             indexed_root: Arc::new(Mutex::new(None)),
             stats:        Arc::new(Mutex::new(indexer::IndexStats::default())),
+            embed_config: Arc::new(Mutex::new(None)),
+            hnsw:         Arc::new(Mutex::new(hnsw)),
         })
     }
 }
@@ -63,11 +68,34 @@ pub async fn graph_search(
         execute(&q, &store)?
     };
 
-    // Fall through to content search if metadata returned nothing
     if results.is_empty() {
         if let Ok(store) = state.store.lock() {
             if let Ok(content_results) = store.content_search(&query_str) {
                 results = content_results;
+            }
+        }
+    }
+
+    if results.is_empty() {
+        // Clone config out before any await — drops MutexGuard immediately.
+        let maybe_config: Option<embedder::EmbedConfig> =
+            state.embed_config.lock().ok().and_then(|g| g.clone());
+        if let Some(config) = maybe_config {
+            if let Ok(query_vec) = embedder::embed_text(&query_str, &config).await {
+                let hnsw_size = state.hnsw.lock().map(|h| h.size()).unwrap_or(0);
+                if hnsw_size > 0 {
+                    let sem_ids: Option<Vec<i64>> = state.hnsw.lock().ok().and_then(|h| {
+                        h.search(&query_vec, 10).ok()
+                            .map(|r| r.keys.iter().map(|k| *k as i64).collect())
+                    });
+                    if let Some(ids) = sem_ids {
+                        if let Ok(store) = state.store.lock() {
+                            if let Ok(sem_nodes) = store.get_nodes_by_ids(&ids) {
+                                results = sem_nodes;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -273,6 +301,104 @@ pub async fn graph_get_dep_tree(
     let max_depth = depth.unwrap_or(3);
     let store = state.store.lock().map_err(|e| e.to_string())?;
     build_dep_tree(&path, max_depth, 0, &store)
+}
+
+#[tauri::command]
+pub async fn graph_set_embedding_provider(
+    config: embedder::EmbedConfig,
+    state: State<'_, GraphAppState>,
+) -> Result<(), String> {
+    *state.embed_config.lock().map_err(|e| e.to_string())? = Some(config);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn graph_semantic_search(
+    query: String,
+    k: Option<usize>,
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<SearchResult>, String> {
+    let top_k = k.unwrap_or(10);
+    // Clone config out before any await — guard must not cross the await point.
+    let config: embedder::EmbedConfig = {
+        let guard = state.embed_config.lock().map_err(|e| e.to_string())?;
+        guard.clone()
+            .ok_or_else(|| "No embedding provider configured. Call graph_set_embedding_provider first.".to_string())?
+    }; // guard dropped here
+
+    let query_vec = embedder::embed_text(&query, &config).await?;
+
+    let node_ids = {
+        let hnsw = state.hnsw.lock().map_err(|e| e.to_string())?;
+        if hnsw.size() == 0 {
+            return Err("No embeddings indexed yet. Deep-index a folder first.".to_string());
+        }
+        let results = hnsw.search(&query_vec, top_k).map_err(|e| e.to_string())?;
+        results.keys.iter().map(|k| *k as i64).collect::<Vec<_>>()
+    };
+
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.get_nodes_by_ids(&node_ids).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn graph_find_similar(
+    path: String,
+    k: Option<usize>,
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<SearchResult>, String> {
+    let top_k = k.unwrap_or(10);
+
+    let node_id = {
+        let store = state.store.lock().map_err(|e| e.to_string())?;
+        store.get_node_id(&path)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("File not indexed: {path}"))?
+    };
+
+    let stored_vec = {
+        let store = state.store.lock().map_err(|e| e.to_string())?;
+        let all = store.get_all_embeddings().map_err(|e| e.to_string())?;
+        all.into_iter()
+            .find(|(id, _)| *id == node_id as u64)
+            .map(|(_, v)| v)
+            .ok_or_else(|| format!("No embedding for {path}. Deep-index the folder first."))?
+    };
+
+    let node_ids = {
+        let hnsw = state.hnsw.lock().map_err(|e| e.to_string())?;
+        let results = hnsw.search(&stored_vec, top_k + 1).map_err(|e| e.to_string())?;
+        results.keys.iter()
+            .filter(|&&id| id != node_id as u64)
+            .take(top_k)
+            .map(|k| *k as i64)
+            .collect::<Vec<_>>()
+    };
+
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.get_nodes_by_ids(&node_ids).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn graph_embed_folder(
+    path: String,
+    state: State<'_, GraphAppState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let config = state.embed_config.lock().map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No embedding provider configured.".to_string())?;
+
+    let store_arc = state.store.clone();
+    let hnsw_arc  = state.hnsw.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let count = embedder::embed_all_content(&store_arc, &config, &hnsw_arc).await;
+        eprintln!("[embedder] embedded {count} files in {path}");
+        app.emit("graph-embeddings-ready", count).ok();
+    });
+
+    Ok(())
 }
 
 fn build_dep_tree(path: &str, max_depth: usize, current: usize, store: &Store)

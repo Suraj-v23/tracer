@@ -30,9 +30,14 @@ pub enum StructuredQuery {
     GetImporters {
         path: String,
     },
+    SemanticSearch {
+        query: String,
+        #[serde(default = "default_k")] k: usize,
+    },
 }
 
 fn default_depth() -> usize { 1 }
+fn default_k() -> usize { 10 }
 
 impl Default for StructuredQuery {
     fn default() -> Self {
@@ -70,6 +75,8 @@ pub fn execute(query: &StructuredQuery, store: &Store) -> Result<Vec<SearchResul
 
         StructuredQuery::GetImporters { path } =>
             store.get_importers(path).map_err(|e| e.to_string()),
+
+        StructuredQuery::SemanticSearch { .. } => Ok(vec![]),
     }
 }
 

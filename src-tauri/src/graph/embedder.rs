@@ -121,11 +121,13 @@ pub async fn embed_text(text: &str, config: &EmbedConfig) -> Result<Vec<f32>, St
 // ─── Batch indexing ───────────────────────────────────────────────────────────
 
 pub async fn embed_all_content(
-    store: &crate::graph::store::Store,
+    store: &std::sync::Arc<std::sync::Mutex<crate::graph::store::Store>>,
     config: &EmbedConfig,
-    hnsw: &Index,
+    hnsw:  &std::sync::Arc<std::sync::Mutex<Index>>,
 ) -> usize {
+    // Collect candidates with the lock held only for the sync DB read, then drop it.
     let candidates: Vec<(i64, String)> = {
+        let Ok(s) = store.lock() else { return 0 };
         let sql = r#"
             SELECT m.node_id, f.content
             FROM fts_node_map m
@@ -134,26 +136,33 @@ pub async fn embed_all_content(
             WHERE e.node_id IS NULL
             LIMIT 500
         "#;
-        let mut stmt = match store.conn.prepare(sql) {
-            Ok(s) => s,
-            Err(_) => return 0,
+        let mut stmt = match s.conn.prepare(sql) {
+            Ok(st) => st,
+            Err(_)  => return 0,
         };
         let rows = match stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))) {
-            Ok(r) => r,
+            Ok(r)  => r,
             Err(_) => return 0,
         };
         rows.filter_map(|r| r.ok()).collect()
-    };
+    }; // lock released here — no guard crosses the await below
 
     let mut count = 0;
     for (node_id, content) in candidates {
-        let chunks = chunk_text(&content, 512);
-        let text = &chunks[0];
-        match embed_text(text, config).await {
+        let text = chunk_text(&content, 512).into_iter().next().unwrap_or_default();
+        // HTTP call — no lock held
+        match embed_text(&text, config).await {
             Ok(vec) => {
-                if store.upsert_embedding(node_id, &vec).is_ok() {
-                    hnsw.reserve(hnsw.size() + 1).ok();
-                    hnsw.add(node_id as u64, &vec).ok();
+                // Re-acquire store lock just for the upsert
+                let store_ok = store.lock()
+                    .map(|s| s.upsert_embedding(node_id, &vec).is_ok())
+                    .unwrap_or(false);
+                if store_ok {
+                    // Re-acquire hnsw lock just for the insert
+                    if let Ok(h) = hnsw.lock() {
+                        h.reserve(h.size() + 1).ok();
+                        h.add(node_id as u64, &vec).ok();
+                    }
                     count += 1;
                 }
             }
