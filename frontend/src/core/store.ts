@@ -1,5 +1,5 @@
 import type { FsNode } from './types.js';
-import * as api from './api.js';
+import * as api from '../api/api.js';
 import { state } from './state.js';
 
 const nodes      = new Map<string, FsNode>();

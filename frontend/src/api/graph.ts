@@ -26,6 +26,40 @@ export interface LlmConfig {
     api_key?: string;
 }
 
+export interface DepTree {
+    path:    string;
+    name:    string;
+    imports: DepTree[];
+}
+
+export interface EmbedConfig {
+    provider: 'ollama' | 'remote';
+    base_url: string;
+    model:    string;
+    api_key?: string;
+    dims:     number;
+}
+
+export interface GlobalAnswer {
+    answer:            string;
+    sources:           GraphSearchResult[];
+    communities_used:  number[];
+}
+
+export interface Community {
+    id:       number;
+    label?:   string;
+    summary?: string;
+    size:     number;
+}
+
+export interface CommunityDetail {
+    id:       number;
+    label?:   string;
+    summary?: string;
+    members:  GraphSearchResult[];
+}
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 function _invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -72,12 +106,6 @@ export async function graphContentSearch(query: string): Promise<GraphSearchResu
     return _invoke('graph_content_search', { query }) as Promise<GraphSearchResult[]>;
 }
 
-export interface DepTree {
-    path:    string;
-    name:    string;
-    imports: DepTree[];
-}
-
 export async function graphGetImports(path: string): Promise<GraphSearchResult[]> {
     return _invoke('graph_get_imports', { path }) as Promise<GraphSearchResult[]>;
 }
@@ -88,14 +116,6 @@ export async function graphGetImporters(path: string): Promise<GraphSearchResult
 
 export async function graphGetDepTree(path: string, depth?: number): Promise<DepTree> {
     return _invoke('graph_get_dep_tree', { path, depth }) as Promise<DepTree>;
-}
-
-export interface EmbedConfig {
-    provider: 'ollama' | 'remote';
-    base_url: string;
-    model:    string;
-    api_key?: string;
-    dims:     number;
 }
 
 export async function graphSetEmbeddingProvider(config: EmbedConfig): Promise<void> {
@@ -112,26 +132,6 @@ export async function graphFindSimilar(path: string, k?: number): Promise<GraphS
 
 export async function graphEmbedFolder(path: string): Promise<void> {
     return _invoke('graph_embed_folder', { path }) as Promise<void>;
-}
-
-export interface GlobalAnswer {
-    answer:            string;
-    sources:           GraphSearchResult[];
-    communities_used:  number[];
-}
-
-export interface Community {
-    id:       number;
-    label?:   string;
-    summary?: string;
-    size:     number;
-}
-
-export interface CommunityDetail {
-    id:       number;
-    label?:   string;
-    summary?: string;
-    members:  GraphSearchResult[];
 }
 
 export async function graphGlobalQuery(question: string): Promise<GlobalAnswer> {

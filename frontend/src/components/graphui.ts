@@ -1,5 +1,5 @@
-import * as graphApi from './graph.js';
-import type { GraphSearchResult, IndexStats } from './graph.js';
+import * as graphApi from '../api/graph.js';
+import type { GraphSearchResult, IndexStats } from '../api/graph.js';
 import { toast } from './events.js';
 
 type SearchMode = 'filter' | 'search' | 'ask';
@@ -317,7 +317,7 @@ export async function refreshCommunitiesList(): Promise<void> {
     const list = document.getElementById('graph-communities-list');
     if (!list) return;
 
-    let communities: import('./graph.js').Community[] = [];
+    let communities: import('../api/graph.js').Community[] = [];
     try { communities = await graphApi.graphListCommunities(); } catch { return; }
 
     list.innerHTML = communities.length === 0

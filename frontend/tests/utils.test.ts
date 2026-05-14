@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatSize, getFileCategory, getColor, COLORS } from './utils.js';
+import { formatSize, getFileCategory, getColor, COLORS } from '../utils/utils.js';
 
 describe('formatSize', () => {
     it('returns "0 B" for zero', () => {

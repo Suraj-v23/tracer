@@ -5,9 +5,9 @@ import type {
     TransferProgressPayload,
     TransferCompletePayload,
     TransferErrorPayload,
-} from './types.js';
-import { state } from './state.js';
-import * as api from './api.js';
+} from '../core/types.js';
+import { state } from '../core/state.js';
+import * as api from '../api/api.js';
 import * as nav from './navigation.js';
 import { toast } from './events.js';
 

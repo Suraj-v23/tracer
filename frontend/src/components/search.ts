@@ -1,6 +1,6 @@
-import type { FsNode } from './types.js';
-import { state } from './state.js';
-import { getFileCategory } from './utils.js';
+import type { FsNode } from '../core/types.js';
+import { state } from '../core/state.js';
+import { getFileCategory } from '../utils/utils.js';
 import { renderScene } from './nodes.js';
 import { updateWireDimming, redrawWires } from './canvas.js';
 import { rerenderDimming } from './nodes.js';

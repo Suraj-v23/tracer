@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock api and state modules before importing store
-vi.mock('./api.js', () => ({
+vi.mock('../api/api.js', () => ({
     getFilesystem: vi.fn(),
 }));
-vi.mock('./state.js', () => ({
+vi.mock('../core/state.js', () => ({
     state: { currentPath: '/test', searchQuery: '' },
 }));
 
-import * as store from './store.js';
-import * as api from './api.js';
+import * as store from '../core/store.js';
+import * as api from '../api/api.js';
 
 const mockNode = {
     name: 'test', path: '/test', type: 'directory' as const,

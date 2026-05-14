@@ -4,15 +4,17 @@
     "module": "ES2020",
     "moduleResolution": "bundler",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "strict": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "skipLibCheck": true,
     "noEmitOnError": false,
     "allowJs": false,
-    "outDir": "./frontend/js",
-    "rootDir": "./frontend/js"
+    "outDir": "./frontend/dist",
+    "rootDir": "./frontend/src",
+    "declaration": false,
+    "sourceMap": true
   },
-  "include": ["frontend/js/**/*.ts"],
-  "exclude": ["frontend/js/**/*.test.ts", "node_modules"]
+  "include": ["frontend/src/**/*.ts"],
+  "exclude": ["frontend/src/**/*.test.ts", "frontend/tests/**/*.ts", "node_modules"]
 }

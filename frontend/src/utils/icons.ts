@@ -1,5 +1,5 @@
 // ─── Single source of truth for all icons ────────────────────────────────────
-// Drop any SVG or PNG into frontend/icons/, then reference it like:
+// Drop any SVG or PNG into frontend/public/icons/, then reference it like:
 //   directory: img('folder.svg'),
 // Or keep the default emoji by using the string directly:
 //   directory: '📁',

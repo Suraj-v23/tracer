@@ -1,6 +1,6 @@
-import type { FsNode } from './types.js';
-import { state } from './state.js';
-import { sizeToColor, getFileCategory, TYPE_ICONS } from './utils.js';
+import type { FsNode } from '../core/types.js';
+import { state } from '../core/state.js';
+import { sizeToColor, getFileCategory, TYPE_ICONS } from '../utils/utils.js';
 import { registerWire, redrawWires, resizeCanvas, clearWires, getChildElements, removeWiresFrom } from './canvas.js';
 
 const COL_HEIGHT  = 8;

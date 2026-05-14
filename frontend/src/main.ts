@@ -1,11 +1,11 @@
-import * as api from './api.js';
-import * as nav from './navigation.js';
-import * as search from './search.js';
-import { centerWorkspace } from './canvas.js';
-import { bindCanvasEvents, bindGlobalEvents, handleNodeClick, bindNodeContextMenu, toast } from './events.js';
-import { initTransfer } from './transfer.js';
-import { UI_ICONS } from './icons.js';
-import { initGraphUI, triggerIndex } from './graphui.js';
+import * as api from './api/api.js';
+import * as nav from './components/navigation.js';
+import * as search from './components/search.js';
+import { centerWorkspace } from './components/canvas.js';
+import { bindCanvasEvents, bindGlobalEvents, handleNodeClick, bindNodeContextMenu, toast } from './components/events.js';
+import { initTransfer } from './components/transfer.js';
+import { UI_ICONS } from './utils/icons.js';
+import { initGraphUI, triggerIndex } from './components/graphui.js';
 
 function _applyIcons(): void {
     const set = (id: string, html: string) => {

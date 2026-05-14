@@ -1,5 +1,5 @@
-import type { FsNode } from './types.js';
-import { UI_ICONS } from './icons.js';
+import type { FsNode } from '../core/types.js';
+import { UI_ICONS } from '../utils/icons.js';
 
 function _invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
     const tauri = (window as any).__TAURI_INTERNALS__;
@@ -47,7 +47,7 @@ export async function openNewWindow(path: string): Promise<void> {
 import type {
     PeerInfo,
     TransferSession,
-} from './types.js';
+} from '../core/types.js';
 
 export async function getPeers(): Promise<PeerInfo[]> {
     return _invoke('get_peers') as Promise<PeerInfo[]>;

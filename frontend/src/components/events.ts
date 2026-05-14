@@ -1,16 +1,16 @@
-import type { FsNode } from './types.js';
-import { state } from './state.js';
+import type { FsNode } from '../core/types.js';
+import { state } from '../core/state.js';
 import * as nav from './navigation.js';
 import { applyFiltersAndRender, applySearch } from './search.js';
 import { openSidebar, closeSidebar, setSidebarItem } from './sidebar.js';
 import { centerWorkspace, updateTransform, redrawWires } from './canvas.js';
 import { expandNodeInPlace, getNodesLayer, collapseExpansion, popAndCollapse } from './nodes.js';
-import * as store from './store.js';
-import * as api from './api.js';
+import * as store from '../core/store.js';
+import * as api from '../api/api.js';
 import { showSendPanel } from './transfer.js';
-import { UI_ICONS } from './icons.js';
+import { UI_ICONS } from '../utils/icons.js';
 import { addIndexedFolder, showImports, showSimilar } from './graphui.js';
-import * as graphApi from './graph.js';
+import * as graphApi from '../api/graph.js';
 
 export function toast(msg: string, type = ''): void {
     const el       = document.createElement('div');
@@ -140,7 +140,7 @@ function exitMoveMode(): void {
     document.getElementById('move-indicator')?.classList.add('hidden');
 }
 
-async function executeMoveInto(destFolder: import('./types.js').FsNode): Promise<void> {
+async function executeMoveInto(destFolder: FsNode): Promise<void> {
     const src      = state.moveSource!;
     const destPath = destFolder.path.replace(/\/$/, '') + '/' + src.name;
     try {
@@ -395,7 +395,7 @@ export function bindGlobalEvents(): void {
     document.getElementById('nodes-layer')!.addEventListener('dblclick', e => {
         const nodeEl = (e.target as HTMLElement).closest('.html-node') as HTMLElement | null;
         if (!nodeEl) return;
-        const item = (nodeEl as any)._fsNode as import('./types.js').FsNode | undefined;
+        const item = (nodeEl as any)._fsNode as FsNode | undefined;
         if (item?.type === 'directory') {
             api.openNewWindow(item.path).catch(err => toast('Error: ' + err, 'error'));
         }

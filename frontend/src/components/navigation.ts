@@ -1,7 +1,7 @@
-import type { FsNode } from './types.js';
-import { state } from './state.js';
-import * as store from './store.js';
-import * as api from './api.js';
+import type { FsNode } from '../core/types.js';
+import { state } from '../core/state.js';
+import * as store from '../core/store.js';
+import * as api from '../api/api.js';
 
 let _onNavigate: ((node: FsNode) => void) | null = null;
 let _onError: ((msg: string) => void) | null = null;

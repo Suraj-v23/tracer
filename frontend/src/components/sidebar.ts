@@ -1,6 +1,6 @@
-import type { FsNode } from './types.js';
-import { state } from './state.js';
-import { getFileCategory, TYPE_ICONS } from './utils.js';
+import type { FsNode } from '../core/types.js';
+import { state } from '../core/state.js';
+import { getFileCategory, TYPE_ICONS } from '../utils/utils.js';
 import { navigate } from './navigation.js';
 
 export function openSidebar(item: FsNode): void {

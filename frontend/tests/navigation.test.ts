@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('./api.js',   () => ({ getFilesystem: vi.fn(), getHomeDir: vi.fn() }));
-vi.mock('./state.js', () => ({
+vi.mock('../api/api.js',   () => ({ getFilesystem: vi.fn(), getHomeDir: vi.fn() }));
+vi.mock('../core/state.js', () => ({
     state: {
         currentPath: '', currentData: null,
         backStack: [], forwardStack: [],
@@ -9,7 +9,7 @@ vi.mock('./state.js', () => ({
         selectedNode: null,
     }
 }));
-vi.mock('./store.js', () => ({
+vi.mock('../core/store.js', () => ({
     get: vi.fn(() => null),
     set: vi.fn(),
     isStale: vi.fn(() => false),
@@ -27,8 +27,8 @@ vi.stubGlobal('document', {
     }),
 });
 
-import { state } from './state.js';
-import { canGoBack, canGoForward, recordNavigate, back, forward } from './navigation.js';
+import { state } from '../core/state.js';
+import { canGoBack, canGoForward, recordNavigate, back, forward } from '../components/navigation.js';
 
 beforeEach(() => {
     state.currentPath  = '';
