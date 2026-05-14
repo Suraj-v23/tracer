@@ -8,7 +8,7 @@ import * as store from './store.js';
 import * as api from './api.js';
 import { showSendPanel } from './transfer.js';
 import { UI_ICONS } from './icons.js';
-import { addIndexedFolder } from './graphui.js';
+import { addIndexedFolder, showImports } from './graphui.js';
 export function toast(msg, type = '') {
     const el = document.createElement('div');
     el.className = `toast ${type}`;
@@ -244,6 +244,16 @@ export function bindGlobalEvents() {
             return;
         await addIndexedFolder(item.path);
     });
+    document.getElementById('ctx-show-imports')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu').classList.add('hidden');
+        if (state.ctxTarget)
+            await showImports(state.ctxTarget.path, 'imports');
+    });
+    document.getElementById('ctx-show-importers')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu').classList.add('hidden');
+        if (state.ctxTarget)
+            await showImports(state.ctxTarget.path, 'importers');
+    });
     document.getElementById('graph-indexed-close')?.addEventListener('click', () => {
         document.getElementById('graph-indexed-panel')?.classList.add('hidden');
     });
@@ -411,6 +421,13 @@ export function bindNodeContextMenu(item, e) {
     const deepIdx = document.getElementById('ctx-deep-index');
     if (deepIdx)
         deepIdx.style.display = item.type === 'directory' ? '' : 'none';
+    const isCode = !!(item.extension && ['.ts', '.js', '.tsx', '.jsx', '.py', '.rs', '.go'].includes(item.extension));
+    const importItems = ['ctx-show-imports', 'ctx-show-importers'];
+    importItems.forEach(id => {
+        const el = document.getElementById(id);
+        if (el)
+            el.style.display = isCode ? '' : 'none';
+    });
     const ctxMenu = document.getElementById('ctx-menu');
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 190) + 'px';
     ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 180) + 'px';

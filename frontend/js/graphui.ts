@@ -159,6 +159,41 @@ export async function triggerIndex(path: string): Promise<void> {
 
 // ─── Indexed Folders Panel ────────────────────────────────────────────────────
 
+export async function showImports(path: string, mode: 'imports' | 'importers'): Promise<void> {
+    const fn_ = mode === 'imports' ? graphApi.graphGetImports : graphApi.graphGetImporters;
+    const label = mode === 'imports' ? 'imports' : 'imported by';
+    const name = path.split('/').pop() || path;
+
+    const panel = document.getElementById('graph-results-panel')!;
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<div class="graph-results-loading">Loading…</div>';
+
+    try {
+        const results = await fn_(path);
+        if (!results.length) {
+            panel.innerHTML = `<div class="graph-results-empty">${_escHtml(name)} has no ${label}</div>`;
+            return;
+        }
+        const items = results.map(r => `
+            <div class="graph-result-item" data-path="${_escHtml(r.path)}" title="${_escHtml(r.path)}">
+                <span class="gr-icon">${r.kind === 'directory' ? '📁' : '📄'}</span>
+                <span class="gr-name">${_escHtml(r.name)}</span>
+                <span class="gr-size">${r.size_human}</span>
+            </div>
+        `).join('');
+        panel.innerHTML = `
+            <div class="graph-results-header">
+                <span>${_escHtml(name)} ${label} ${results.length} file${results.length !== 1 ? 's' : ''}</span>
+                <button id="graph-results-close" class="graph-results-close">✕</button>
+            </div>
+            <div class="graph-results-list">${items}</div>
+        `;
+        document.getElementById('graph-results-close')?.addEventListener('click', hideResultsPanel);
+    } catch (e) {
+        panel.innerHTML = `<div class="graph-results-empty">Error: ${_escHtml(String(e))}</div>`;
+    }
+}
+
 export async function addIndexedFolder(path: string): Promise<void> {
     try {
         await graphApi.graphAddIndexedFolder(path);

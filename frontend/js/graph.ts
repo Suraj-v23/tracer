@@ -71,3 +71,21 @@ export async function graphListIndexedFolders(): Promise<string[]> {
 export async function graphContentSearch(query: string): Promise<GraphSearchResult[]> {
     return _invoke('graph_content_search', { query }) as Promise<GraphSearchResult[]>;
 }
+
+export interface DepTree {
+    path:    string;
+    name:    string;
+    imports: DepTree[];
+}
+
+export async function graphGetImports(path: string): Promise<GraphSearchResult[]> {
+    return _invoke('graph_get_imports', { path }) as Promise<GraphSearchResult[]>;
+}
+
+export async function graphGetImporters(path: string): Promise<GraphSearchResult[]> {
+    return _invoke('graph_get_importers', { path }) as Promise<GraphSearchResult[]>;
+}
+
+export async function graphGetDepTree(path: string, depth?: number): Promise<DepTree> {
+    return _invoke('graph_get_dep_tree', { path, depth }) as Promise<DepTree>;
+}
