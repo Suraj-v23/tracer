@@ -24,6 +24,12 @@ pub enum StructuredQuery {
     ContentSearch {
         terms: String,
     },
+    GetImports {
+        path: String,
+    },
+    GetImporters {
+        path: String,
+    },
 }
 
 fn default_depth() -> usize { 1 }
@@ -58,6 +64,12 @@ pub fn execute(query: &StructuredQuery, store: &Store) -> Result<Vec<SearchResul
 
         StructuredQuery::ContentSearch { terms } =>
             store.content_search(terms).map_err(|e| e.to_string()),
+
+        StructuredQuery::GetImports { path } =>
+            store.get_imports(path).map_err(|e| e.to_string()),
+
+        StructuredQuery::GetImporters { path } =>
+            store.get_importers(path).map_err(|e| e.to_string()),
     }
 }
 

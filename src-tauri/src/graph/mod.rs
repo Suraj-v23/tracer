@@ -237,3 +237,60 @@ pub async fn graph_content_search(
     let store = state.store.lock().map_err(|e| e.to_string())?;
     store.content_search(&query).map_err(|e| e.to_string())
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DepTree {
+    pub path:    String,
+    pub name:    String,
+    pub imports: Vec<DepTree>,
+}
+
+#[tauri::command]
+pub async fn graph_get_imports(
+    path: String,
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<SearchResult>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.get_imports(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn graph_get_importers(
+    path: String,
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<SearchResult>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.get_importers(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn graph_get_dep_tree(
+    path: String,
+    depth: Option<usize>,
+    state: State<'_, GraphAppState>,
+) -> Result<DepTree, String> {
+    let max_depth = depth.unwrap_or(3);
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    build_dep_tree(&path, max_depth, 0, &store)
+}
+
+fn build_dep_tree(path: &str, max_depth: usize, current: usize, store: &Store)
+    -> Result<DepTree, String>
+{
+    let name = std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string());
+
+    let imports = if current < max_depth {
+        store.get_imports(path)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter_map(|r| build_dep_tree(&r.path, max_depth, current + 1, store).ok())
+            .collect()
+    } else {
+        vec![]
+    };
+
+    Ok(DepTree { path: path.to_string(), name, imports })
+}

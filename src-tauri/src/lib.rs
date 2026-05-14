@@ -458,6 +458,9 @@ pub fn run() {
             graph::graph_remove_indexed_folder,
             graph::graph_list_indexed_folders,
             graph::graph_content_search,
+            graph::graph_get_imports,
+            graph::graph_get_importers,
+            graph::graph_get_dep_tree,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tracer");
