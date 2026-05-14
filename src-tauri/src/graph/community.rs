@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use regex::Regex;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::graph::store::{Store, CommunitySummary, SearchResult};
 use crate::graph::llm::{LlmConfig, call_llm_raw};
@@ -176,33 +176,41 @@ pub fn rebuild_communities(store: &Store) {
 
 // ─── Community summarization ──────────────────────────────────────────────────
 
-pub async fn summarize_communities(store: &Store, config: &LlmConfig) {
-    let communities = match store.list_communities() {
-        Ok(c) => c,
-        Err(_) => return,
-    };
+pub async fn summarize_communities(store_arc: &Arc<Mutex<Store>>, config: &LlmConfig) {
+    let communities = {
+        match store_arc.lock() {
+            Ok(s) => match s.list_communities() { Ok(c) => c, Err(_) => return },
+            Err(_) => return,
+        }
+    }; // guard dropped here
 
     for community in &communities {
         if community.summary.is_some() { continue; }
 
-        let members = match store.get_community_members(community.id) {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-
-        let file_list = members.iter().take(10)
-            .map(|r| r.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let ids: Vec<i64> = serde_json::from_str(&community.member_ids).unwrap_or_default();
-        let mut entity_set: std::collections::HashSet<String> = std::collections::HashSet::new();
-        for &id in ids.iter().take(5) {
-            if let Ok(names) = store.get_entity_names_for_node(id) {
-                entity_set.extend(names.into_iter().take(5));
+        let (file_list, entity_names) = {
+            match store_arc.lock() {
+                Ok(s) => {
+                    let members = match s.get_community_members(community.id) {
+                        Ok(m) => m,
+                        Err(_) => continue,
+                    };
+                    let fl = members.iter().take(10)
+                        .map(|r| r.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let ids: Vec<i64> = serde_json::from_str(&community.member_ids).unwrap_or_default();
+                    let mut entity_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+                    for &id in ids.iter().take(5) {
+                        if let Ok(names) = s.get_entity_names_for_node(id) {
+                            entity_set.extend(names.into_iter().take(5));
+                        }
+                    }
+                    let en: Vec<String> = entity_set.into_iter().take(15).collect();
+                    (fl, en)
+                }
+                Err(_) => continue,
             }
-        }
-        let entity_names: Vec<String> = entity_set.into_iter().take(15).collect();
+        }; // guard dropped here
 
         let prompt = format!(
             "In one sentence, summarize what this group of code files is about.\nFiles: {}\nKey symbols: {}\nSummary:",
@@ -211,7 +219,11 @@ pub async fn summarize_communities(store: &Store, config: &LlmConfig) {
         );
 
         match call_llm_raw(config, &prompt).await {
-            Ok(s) => { let _ = store.update_community_summary(community.id, s.trim()); }
+            Ok(s) => {
+                if let Ok(store) = store_arc.lock() {
+                    let _ = store.update_community_summary(community.id, s.trim());
+                }
+            }
             Err(e) => eprintln!("[community] summarize failed for {}: {e}", community.id),
         }
     }
@@ -228,10 +240,15 @@ pub struct GlobalAnswer {
 
 pub async fn global_query(
     question: &str,
-    store: &Store,
+    store_arc: &Arc<Mutex<Store>>,
     config: &LlmConfig,
 ) -> Result<GlobalAnswer, String> {
-    let communities = store.list_communities().map_err(|e| e.to_string())?;
+    // Fetch all communities synchronously and drop the lock before any await.
+    let communities: Vec<CommunitySummary> = {
+        let store = store_arc.lock().map_err(|e| e.to_string())?;
+        store.list_communities().map_err(|e| e.to_string())?
+    }; // guard dropped here
+
     if communities.is_empty() {
         return Err("No communities built yet. Run graph_rebuild_communities first.".to_string());
     }
@@ -269,7 +286,11 @@ pub async fn global_query(
         .into_iter()
         .collect();
 
-    let sources = store.get_nodes_by_ids(&member_node_ids).map_err(|e| e.to_string())?;
+    // Lock again (sync only — no await while held).
+    let sources = {
+        let store = store_arc.lock().map_err(|e| e.to_string())?;
+        store.get_nodes_by_ids(&member_node_ids).map_err(|e| e.to_string())?
+    }; // guard dropped here
 
     let context = sources.iter().take(8)
         .map(|r| format!("- {}", r.name))

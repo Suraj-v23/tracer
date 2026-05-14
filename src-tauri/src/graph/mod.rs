@@ -402,6 +402,87 @@ pub async fn graph_embed_folder(
     Ok(())
 }
 
+// ─── GraphRAG response types ──────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Community {
+    pub id:      i64,
+    pub label:   Option<String>,
+    pub summary: Option<String>,
+    pub size:    usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommunityDetail {
+    pub id:      i64,
+    pub label:   Option<String>,
+    pub summary: Option<String>,
+    pub members: Vec<SearchResult>,
+}
+
+// ─── GraphRAG commands ────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn graph_rebuild_communities(
+    state: State<'_, GraphAppState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let store_arc  = state.store.clone();
+    let llm_config = state.llm_config.lock().map_err(|e| e.to_string())?.clone();
+
+    tauri::async_runtime::spawn(async move {
+        if let Ok(store) = store_arc.lock() {
+            community::rebuild_communities(&store);
+        } // guard dropped before any await
+
+        if let Some(config) = llm_config {
+            community::summarize_communities(&store_arc, &config).await;
+        }
+        app.emit("graph-communities-ready", ()).ok();
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn graph_list_communities(
+    state: State<'_, GraphAppState>,
+) -> Result<Vec<Community>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    store.list_communities()
+        .map_err(|e| e.to_string())
+        .map(|cs| cs.into_iter().map(|c| {
+            let size = serde_json::from_str::<Vec<i64>>(&c.member_ids)
+                .map(|v| v.len()).unwrap_or(0);
+            Community { id: c.id, label: c.label, summary: c.summary, size }
+        }).collect())
+}
+
+#[tauri::command]
+pub async fn graph_get_community(
+    id: i64,
+    state: State<'_, GraphAppState>,
+) -> Result<CommunityDetail, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    let communities = store.list_communities().map_err(|e| e.to_string())?;
+    let c = communities.into_iter().find(|c| c.id == id)
+        .ok_or_else(|| format!("Community {id} not found"))?;
+    let members = store.get_community_members(id).map_err(|e| e.to_string())?;
+    Ok(CommunityDetail { id: c.id, label: c.label, summary: c.summary, members })
+}
+
+#[tauri::command]
+pub async fn graph_global_query(
+    question: String,
+    state: State<'_, GraphAppState>,
+) -> Result<community::GlobalAnswer, String> {
+    let config = state.llm_config.lock().map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "No LLM configured. Set one via graph_set_llm.".to_string())?;
+    let store_arc = state.store.clone();
+    community::global_query(&question, &store_arc, &config).await
+}
+
 fn build_dep_tree(path: &str, max_depth: usize, current: usize, store: &Store)
     -> Result<DepTree, String>
 {

@@ -465,6 +465,10 @@ pub fn run() {
             graph::graph_semantic_search,
             graph::graph_find_similar,
             graph::graph_embed_folder,
+            graph::graph_rebuild_communities,
+            graph::graph_list_communities,
+            graph::graph_get_community,
+            graph::graph_global_query,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tracer");
