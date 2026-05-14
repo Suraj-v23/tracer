@@ -43,7 +43,7 @@ Question: "#;
 
 pub async fn nl_to_query(question: &str, config: &LlmConfig) -> Result<StructuredQuery, String> {
     let prompt = format!("{SCHEMA_PROMPT}{question}");
-    let raw = call_llm(config, &prompt).await?;
+    let raw = call_llm_raw(config, &prompt).await?;
 
     let cleaned = raw.trim()
         .trim_start_matches("```json")
@@ -55,7 +55,7 @@ pub async fn nl_to_query(question: &str, config: &LlmConfig) -> Result<Structure
         .map_err(|e| format!("LLM returned invalid JSON: {e}\nRaw: {raw}"))
 }
 
-async fn call_llm(config: &LlmConfig, prompt: &str) -> Result<String, String> {
+pub async fn call_llm_raw(config: &LlmConfig, prompt: &str) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
