@@ -202,6 +202,10 @@ pub async fn graph_add_indexed_folder(
         if let Ok(store) = store_arc.lock() {
             crate::graph::content::index_folder(std::path::Path::new(&path), &store);
         }
+        // Parse and store import edges
+        if let Ok(store) = store_arc.lock() {
+            crate::graph::parser::index_imports(std::path::Path::new(&path), &store);
+        }
         app.emit("graph-content-indexed", &path).ok();
     });
 

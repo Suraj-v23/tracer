@@ -41,12 +41,16 @@ pub fn resolve_import(raw: &str, source_file: &Path) -> Option<String> {
     let dir = source_file.parent()?;
     let resolved = dir.join(raw);
     if resolved.exists() {
-        return Some(resolved.to_string_lossy().to_string());
+        return std::fs::canonicalize(&resolved).ok()
+            .map(|p| p.to_string_lossy().to_string())
+            .or_else(|| Some(resolved.to_string_lossy().to_string()));
     }
     for ext in &[".ts", ".tsx", ".js", ".jsx", ".py", ".rs"] {
         let with_ext = dir.join(format!("{raw}{ext}"));
         if with_ext.exists() {
-            return Some(with_ext.to_string_lossy().to_string());
+            return std::fs::canonicalize(&with_ext).ok()
+                .map(|p| p.to_string_lossy().to_string())
+                .or_else(|| Some(with_ext.to_string_lossy().to_string()));
         }
     }
     for index in &["index.ts", "index.js", "mod.rs"] {
@@ -118,6 +122,49 @@ fn extract_html(text: &str) -> Vec<String> {
     let script = HTML_SCRIPT.get_or_init(|| re(r#"<script[^>]+src=['"]([^'"]+)['"]"#));
     for cap in script.captures_iter(text) { out.push(cap[1].to_string()); }
     out
+}
+
+// ─── Index imports ────────────────────────────────────────────────────────────
+
+/// Walk all code files under `root`, parse their imports, resolve paths,
+/// and insert `imports` edges into the store.
+pub fn index_imports(root: &Path, store: &crate::graph::store::Store) {
+    use walkdir::WalkDir;
+    use rayon::prelude::*;
+
+    let entries: Vec<_> = WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .collect();
+
+    // Extract (source_path, Vec<resolved_target_path>) in parallel
+    let pairs: Vec<(String, Vec<String>)> = entries.par_iter()
+        .filter_map(|entry| {
+            let path = entry.path();
+            let ext = path.extension()
+                .map(|e| format!(".{}", e.to_string_lossy().to_lowercase()))
+                .unwrap_or_default();
+            let text = std::fs::read_to_string(path).ok()?;
+            let raw_imports = extract_imports(&text, &ext);
+            if raw_imports.is_empty() { return None; }
+            let resolved: Vec<String> = raw_imports.iter()
+                .filter_map(|raw| resolve_import(raw, path))
+                .collect();
+            if resolved.is_empty() { return None; }
+            Some((path.to_string_lossy().to_string(), resolved))
+        })
+        .collect();
+
+    // Write edges sequentially (SQLite single-writer)
+    let _ = store.conn.execute("BEGIN", []);
+    for (from_path, targets) in &pairs {
+        for to_path in targets {
+            let _ = store.upsert_edge(from_path, to_path, "imports");
+        }
+    }
+    let _ = store.conn.execute("COMMIT", []);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -195,5 +242,38 @@ mod tests {
     fn unknown_extension_returns_empty() {
         let imports = extract_imports("whatever content", ".exe");
         assert!(imports.is_empty());
+    }
+
+    #[test]
+    fn index_imports_for_folder() {
+        use crate::graph::store::{GraphNode, Store};
+        use std::fs;
+
+        let dir = tempfile::tempdir().unwrap();
+        // Canonicalize the root so walkdir paths and stored paths always match,
+        // even on macOS where /var/folders may be a symlink to /private/var/folders.
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let main_path  = root.join("main.ts");
+        let utils_path = root.join("utils.ts");
+        fs::write(&main_path,  b"import { foo } from './utils'").unwrap();
+        fs::write(&utils_path, b"export function foo() {}").unwrap();
+
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&GraphNode { id: 0,
+            path: main_path.to_string_lossy().to_string(),
+            name: "main.ts".into(), kind: "file".into(), size: 28,
+            extension: Some(".ts".into()), modified_secs: None, created_secs: None, content_hash: None,
+        }).unwrap();
+        store.upsert_node(&GraphNode { id: 0,
+            path: utils_path.to_string_lossy().to_string(),
+            name: "utils.ts".into(), kind: "file".into(), size: 24,
+            extension: Some(".ts".into()), modified_secs: None, created_secs: None, content_hash: None,
+        }).unwrap();
+
+        index_imports(&root, &store);
+
+        let imports = store.get_imports(&main_path.to_string_lossy()).unwrap();
+        assert_eq!(imports.len(), 1, "main.ts should import utils.ts");
+        assert_eq!(imports[0].name, "utils.ts");
     }
 }
