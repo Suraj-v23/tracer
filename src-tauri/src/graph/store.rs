@@ -30,6 +30,16 @@ pub struct SearchResult {
     pub score:         f64,
 }
 
+// ─── Community Summary ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CommunitySummary {
+    pub id:         i64,
+    pub label:      Option<String>,
+    pub summary:    Option<String>,
+    pub member_ids: String,
+}
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 pub struct Store {
@@ -111,6 +121,22 @@ impl Store {
                 node_id INTEGER PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
                 vector  BLOB NOT NULL,
                 dims    INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS entities (
+                id      INTEGER PRIMARY KEY,
+                node_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+                name    TEXT NOT NULL,
+                kind    TEXT NOT NULL DEFAULT 'symbol'
+            );
+            CREATE INDEX IF NOT EXISTS idx_entities_node ON entities(node_id);
+            CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
+
+            CREATE TABLE IF NOT EXISTS communities (
+                id         INTEGER PRIMARY KEY,
+                label      TEXT,
+                summary    TEXT,
+                member_ids TEXT NOT NULL DEFAULT '[]'
             );
         "#)
     }
@@ -482,6 +508,98 @@ impl Store {
             .collect();
         Ok(results)
     }
+
+    // ── Entities ──────────────────────────────────────────────────────────────
+
+    pub fn insert_entities(&self, node_id: i64, entities: &[(String, String)]) -> SqlResult<()> {
+        self.conn.execute("DELETE FROM entities WHERE node_id=?1", params![node_id])?;
+        for (name, kind) in entities {
+            self.conn.execute(
+                "INSERT INTO entities (node_id, name, kind) VALUES (?1, ?2, ?3)",
+                params![node_id, name, kind],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn get_entity_names_for_node(&self, node_id: i64) -> SqlResult<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT name FROM entities WHERE node_id=?1"
+        )?;
+        let results = stmt.query_map(params![node_id], |r| r.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
+
+    pub fn get_all_node_entities(&self) -> SqlResult<Vec<(i64, Vec<String>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT node_id, name FROM entities ORDER BY node_id"
+        )?;
+        let rows: Vec<(i64, String)> = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let mut grouped: std::collections::HashMap<i64, Vec<String>> = std::collections::HashMap::new();
+        for (id, name) in rows {
+            grouped.entry(id).or_default().push(name);
+        }
+        Ok(grouped.into_iter().collect())
+    }
+
+    // ── Communities ───────────────────────────────────────────────────────────
+
+    pub fn upsert_community(
+        &self,
+        label: Option<&str>,
+        summary: Option<&str>,
+        member_node_ids: &[i64],
+    ) -> SqlResult<i64> {
+        let member_json = serde_json::to_string(member_node_ids).unwrap_or_else(|_| "[]".into());
+        self.conn.execute(
+            "INSERT INTO communities (label, summary, member_ids) VALUES (?1, ?2, ?3)",
+            params![label, summary, member_json],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn update_community_summary(&self, id: i64, summary: &str) -> SqlResult<()> {
+        self.conn.execute(
+            "UPDATE communities SET summary=?1 WHERE id=?2",
+            params![summary, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_communities(&self) -> SqlResult<Vec<CommunitySummary>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, label, summary, member_ids FROM communities ORDER BY id"
+        )?;
+        let results = stmt.query_map([], |r| Ok(CommunitySummary {
+            id:         r.get(0)?,
+            label:      r.get(1)?,
+            summary:    r.get(2)?,
+            member_ids: r.get(3)?,
+        }))?
+        .filter_map(|r| r.ok())
+        .collect();
+        Ok(results)
+    }
+
+    pub fn get_community_members(&self, id: i64) -> SqlResult<Vec<SearchResult>> {
+        let member_json: String = self.conn.query_row(
+            "SELECT member_ids FROM communities WHERE id=?1",
+            params![id],
+            |r| r.get(0),
+        )?;
+        let ids: Vec<i64> = serde_json::from_str(&member_json).unwrap_or_default();
+        self.get_nodes_by_ids(&ids)
+    }
+
+    pub fn clear_communities(&self) -> SqlResult<()> {
+        self.conn.execute("DELETE FROM communities", [])?;
+        Ok(())
+    }
 }
 
 fn row_to_result(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchResult> {
@@ -681,5 +799,50 @@ mod tests {
         let id = store.get_node_id("/a/f.ts").unwrap().unwrap();
         let path = store.get_node_path_by_id(id).unwrap();
         assert_eq!(path.as_deref(), Some("/a/f.ts"));
+    }
+
+    #[test]
+    fn entity_insert_and_list() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/main.ts", "main.ts", "file", 100)).unwrap();
+        let id = store.get_node_id("/a/main.ts").unwrap().unwrap();
+        store.insert_entities(id, &[
+            ("authenticate".to_string(), "function".to_string()),
+            ("User".to_string(), "class".to_string()),
+        ]).unwrap();
+        let names = store.get_entity_names_for_node(id).unwrap();
+        assert!(names.contains(&"authenticate".to_string()));
+        assert!(names.contains(&"User".to_string()));
+    }
+
+    #[test]
+    fn community_crud() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store.upsert_community(None, None, &[1, 2, 3]).unwrap();
+        assert!(id > 0);
+        store.update_community_summary(id, "Auth module").unwrap();
+        let communities = store.list_communities().unwrap();
+        assert_eq!(communities.len(), 1);
+        assert_eq!(communities[0].summary.as_deref(), Some("Auth module"));
+        assert_eq!(communities[0].id, id);
+        let members_json = &communities[0].member_ids;
+        let members: Vec<i64> = serde_json::from_str(members_json).unwrap();
+        assert_eq!(members.len(), 3);
+    }
+
+    #[test]
+    fn get_all_node_entities_groups_by_node() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a.ts", "a.ts", "file", 10)).unwrap();
+        store.upsert_node(&make_node("/b.ts", "b.ts", "file", 10)).unwrap();
+        let id_a = store.get_node_id("/a.ts").unwrap().unwrap();
+        let id_b = store.get_node_id("/b.ts").unwrap().unwrap();
+        store.insert_entities(id_a, &[("foo".to_string(), "function".to_string())]).unwrap();
+        store.insert_entities(id_b, &[("foo".to_string(), "function".to_string()),
+                                       ("bar".to_string(), "function".to_string())]).unwrap();
+        let all = store.get_all_node_entities().unwrap();
+        assert_eq!(all.len(), 2);
+        let a_entities = all.iter().find(|(id, _)| *id == id_a).map(|(_, e)| e).unwrap();
+        assert_eq!(a_entities.len(), 1);
     }
 }
