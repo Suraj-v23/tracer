@@ -106,6 +106,12 @@ impl Store {
                 rowid   INTEGER PRIMARY KEY,
                 node_id INTEGER NOT NULL REFERENCES nodes(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS embeddings (
+                node_id INTEGER PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE,
+                vector  BLOB NOT NULL,
+                dims    INTEGER NOT NULL
+            );
         "#)
     }
 
@@ -421,6 +427,61 @@ impl Store {
             |r| r.get(0),
         )
     }
+
+    // ── Vector Embeddings ─────────────────────────────────────────────────────
+
+    pub fn upsert_embedding(&self, node_id: i64, vector: &[f32]) -> SqlResult<()> {
+        let bytes: &[u8] = bytemuck::cast_slice(vector);
+        self.conn.execute(
+            "INSERT OR REPLACE INTO embeddings (node_id, vector, dims) VALUES (?1, ?2, ?3)",
+            params![node_id, bytes, vector.len() as i64],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_all_embeddings(&self) -> SqlResult<Vec<(u64, Vec<f32>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT node_id, vector FROM embeddings"
+        )?;
+        let results = stmt.query_map([], |row| {
+            let node_id: i64 = row.get(0)?;
+            let bytes: Vec<u8> = row.get(1)?;
+            Ok((node_id as u64, bytes))
+        })?
+        .filter_map(|r| r.ok())
+        .map(|(id, bytes)| {
+            let floats: Vec<f32> = bytemuck::cast_slice(&bytes).to_vec();
+            (id, floats)
+        })
+        .collect();
+        Ok(results)
+    }
+
+    pub fn get_node_path_by_id(&self, node_id: i64) -> SqlResult<Option<String>> {
+        let mut stmt = self.conn.prepare_cached("SELECT path FROM nodes WHERE id=?1")?;
+        let mut rows = stmt.query(params![node_id])?;
+        Ok(rows.next()?.map(|r| r.get(0)).transpose()?)
+    }
+
+    pub fn get_nodes_by_ids(&self, ids: &[i64]) -> SqlResult<Vec<SearchResult>> {
+        if ids.is_empty() { return Ok(vec![]); }
+        let placeholders: String = (1..=ids.len())
+            .map(|i| format!("?{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT path, name, kind, size, extension, modified_secs FROM nodes WHERE id IN ({})",
+            placeholders
+        );
+        let params_ref: Vec<&dyn rusqlite::ToSql> = ids.iter()
+            .map(|id| id as &dyn rusqlite::ToSql)
+            .collect();
+        let mut stmt = self.conn.prepare(&sql)?;
+        let results = stmt.query_map(params_ref.as_slice(), row_to_result)?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(results)
+    }
 }
 
 fn row_to_result(row: &rusqlite::Row<'_>) -> rusqlite::Result<SearchResult> {
@@ -596,5 +657,29 @@ mod tests {
         store.upsert_edge("/a/main.ts", "/a/utils.ts", "imports").unwrap();
         assert_eq!(store.import_count("/a/main.ts").unwrap(),    1);
         assert_eq!(store.importer_count("/a/utils.ts").unwrap(), 1);
+    }
+
+    #[test]
+    fn upsert_and_get_embedding() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/f.ts", "f.ts", "file", 100)).unwrap();
+        let id = store.get_node_id("/a/f.ts").unwrap().unwrap();
+        let vec: Vec<f32> = vec![0.1, 0.2, 0.3, 0.4];
+        store.upsert_embedding(id, &vec).unwrap();
+
+        let all = store.get_all_embeddings().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].0, id as u64);
+        assert_eq!(all[0].1.len(), 4);
+        assert!((all[0].1[0] - 0.1f32).abs() < 1e-6);
+    }
+
+    #[test]
+    fn get_node_path_by_id_works() {
+        let store = Store::open_in_memory().unwrap();
+        store.upsert_node(&make_node("/a/f.ts", "f.ts", "file", 100)).unwrap();
+        let id = store.get_node_id("/a/f.ts").unwrap().unwrap();
+        let path = store.get_node_path_by_id(id).unwrap();
+        assert_eq!(path.as_deref(), Some("/a/f.ts"));
     }
 }
