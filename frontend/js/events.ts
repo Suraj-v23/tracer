@@ -9,7 +9,7 @@ import * as store from './store.js';
 import * as api from './api.js';
 import { showSendPanel } from './transfer.js';
 import { UI_ICONS } from './icons.js';
-import { addIndexedFolder, showImports } from './graphui.js';
+import { addIndexedFolder, showImports, showSimilar } from './graphui.js';
 
 export function toast(msg: string, type = ''): void {
     const el       = document.createElement('div');
@@ -258,6 +258,11 @@ export function bindGlobalEvents(): void {
         if (state.ctxTarget) await showImports(state.ctxTarget.path, 'importers');
     });
 
+    document.getElementById('ctx-find-similar')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu')!.classList.add('hidden');
+        if (state.ctxTarget) await showSimilar(state.ctxTarget.path);
+    });
+
     document.getElementById('graph-indexed-close')?.addEventListener('click', () => {
         document.getElementById('graph-indexed-panel')?.classList.add('hidden');
     });
@@ -438,6 +443,8 @@ export function bindNodeContextMenu(item: FsNode, e: MouseEvent): void {
         const el = document.getElementById(id);
         if (el) el.style.display = isCode ? '' : 'none';
     });
+    const similarEl = document.getElementById('ctx-find-similar');
+    if (similarEl) similarEl.style.display = item.type === 'file' ? '' : 'none';
     const ctxMenu = document.getElementById('ctx-menu')!;
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth  - 190) + 'px';
     ctxMenu.style.top  = Math.min(e.clientY, window.innerHeight - 180) + 'px';

@@ -21,6 +21,9 @@ export function initGraphUI(onFilterMode: () => void): void {
             refreshIndexedFoldersList();
             toast('Content indexing complete', 'success');
         });
+        tauri.event.listen('graph-embeddings-ready', (count: number) => {
+            toast(`Semantic index ready — ${count} files embedded`, 'success');
+        });
     }
 }
 
@@ -191,6 +194,43 @@ export async function showImports(path: string, mode: 'imports' | 'importers'): 
         document.getElementById('graph-results-close')?.addEventListener('click', hideResultsPanel);
     } catch (e) {
         panel.innerHTML = `<div class="graph-results-empty">Error: ${_escHtml(String(e))}</div>`;
+    }
+}
+
+export async function showSimilar(path: string): Promise<void> {
+    const name = path.split('/').pop() || path;
+    const panel = document.getElementById('graph-results-panel')!;
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<div class="graph-results-loading">Finding similar files…</div>';
+
+    try {
+        const results = await graphApi.graphFindSimilar(path, 10);
+        if (!results.length) {
+            panel.innerHTML = `<div class="graph-results-empty">No similar files found for ${_escHtml(name)}.<br><small>Deep-index + embed the folder first.</small></div>`;
+            return;
+        }
+        const items = results.map(r => `
+            <div class="graph-result-item" data-path="${_escHtml(r.path)}" title="${_escHtml(r.path)}">
+                <span class="gr-icon">${r.kind === 'directory' ? '📁' : '📄'}</span>
+                <span class="gr-name">${_escHtml(r.name)}</span>
+                <span class="gr-size">${r.size_human}</span>
+            </div>
+        `).join('');
+        panel.innerHTML = `
+            <div class="graph-results-header">
+                <span>Files similar to ${_escHtml(name)}</span>
+                <button id="graph-results-close" class="graph-results-close">✕</button>
+            </div>
+            <div class="graph-results-list">${items}</div>
+        `;
+        document.getElementById('graph-results-close')?.addEventListener('click', hideResultsPanel);
+    } catch (e) {
+        const msg = String(e);
+        if (msg.includes('No embedding provider')) {
+            panel.innerHTML = `<div class="graph-results-empty">Set an embedding provider first.<br><small>${_escHtml(msg)}</small></div>`;
+        } else {
+            panel.innerHTML = `<div class="graph-results-empty">Error: ${_escHtml(msg)}</div>`;
+        }
     }
 }
 

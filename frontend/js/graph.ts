@@ -89,3 +89,27 @@ export async function graphGetImporters(path: string): Promise<GraphSearchResult
 export async function graphGetDepTree(path: string, depth?: number): Promise<DepTree> {
     return _invoke('graph_get_dep_tree', { path, depth }) as Promise<DepTree>;
 }
+
+export interface EmbedConfig {
+    provider: 'ollama' | 'remote';
+    base_url: string;
+    model:    string;
+    api_key?: string;
+    dims:     number;
+}
+
+export async function graphSetEmbeddingProvider(config: EmbedConfig): Promise<void> {
+    return _invoke('graph_set_embedding_provider', { config }) as Promise<void>;
+}
+
+export async function graphSemanticSearch(query: string, k?: number): Promise<GraphSearchResult[]> {
+    return _invoke('graph_semantic_search', { query, k }) as Promise<GraphSearchResult[]>;
+}
+
+export async function graphFindSimilar(path: string, k?: number): Promise<GraphSearchResult[]> {
+    return _invoke('graph_find_similar', { path, k }) as Promise<GraphSearchResult[]>;
+}
+
+export async function graphEmbedFolder(path: string): Promise<void> {
+    return _invoke('graph_embed_folder', { path }) as Promise<void>;
+}
