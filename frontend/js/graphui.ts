@@ -25,6 +25,14 @@ export function initGraphUI(onFilterMode: () => void): void {
             toast(`Semantic index ready — ${count} files embedded`, 'success');
         });
     }
+
+    refreshCommunitiesList();
+    if (tauri?.event?.listen) {
+        tauri.event.listen('graph-communities-ready', () => {
+            refreshCommunitiesList();
+            toast('Communities rebuilt', 'success');
+        });
+    }
 }
 
 // ─── Search modes ────────────────────────────────────────────────────────────
@@ -40,7 +48,7 @@ function _bindModeButtons(): void {
         const query = input?.value.trim();
         if (!query) return;
         if (_currentMode === 'search') await _runSearch(query);
-        else if (_currentMode === 'ask') await _runSearch(query);
+        else if (_currentMode === 'ask') await _runAskAI(query);
     });
 }
 
@@ -77,6 +85,38 @@ async function _runSearch(query: string): Promise<void> {
     } catch (e) {
         hideResultsPanel();
         toast(`Search failed: ${e}`, 'error');
+    }
+}
+
+async function _runAskAI(question: string): Promise<void> {
+    const panel = document.getElementById('graph-results-panel')!;
+    panel.classList.remove('hidden');
+    panel.innerHTML = '<div class="graph-results-loading">Asking AI…</div>';
+
+    try {
+        const answer = await graphApi.graphGlobalQuery(question);
+        const sourceItems = answer.sources.map(r => `
+            <div class="graph-result-item" data-path="${_escHtml(r.path)}" title="${_escHtml(r.path)}">
+                <span class="gr-icon">📄</span>
+                <span class="gr-name">${_escHtml(r.name)}</span>
+                <span class="gr-size">${r.size_human}</span>
+            </div>
+        `).join('');
+        panel.innerHTML = `
+            <div class="graph-results-header">
+                <span>AI Answer</span>
+                <button id="graph-results-close" class="graph-results-close">✕</button>
+            </div>
+            <div class="graph-answer-text">${_escHtml(answer.answer)}</div>
+            ${answer.sources.length ? `
+                <div class="graph-answer-sources-label">Sources (${answer.sources.length} files)</div>
+                <div class="graph-results-list">${sourceItems}</div>
+            ` : ''}
+        `;
+        document.getElementById('graph-results-close')?.addEventListener('click', hideResultsPanel);
+    } catch (e) {
+        const msg = String(e);
+        panel.innerHTML = `<div class="graph-results-empty">${_escHtml(msg.includes('No LLM') ? 'Set an LLM provider first (graph_set_llm command).' : msg)}</div>`;
     }
 }
 
@@ -271,4 +311,21 @@ export async function refreshIndexedFoldersList(): Promise<void> {
             }
         });
     });
+}
+
+export async function refreshCommunitiesList(): Promise<void> {
+    const list = document.getElementById('graph-communities-list');
+    if (!list) return;
+
+    let communities: import('./graph.js').Community[] = [];
+    try { communities = await graphApi.graphListCommunities(); } catch { return; }
+
+    list.innerHTML = communities.length === 0
+        ? '<div class="graph-no-folders">No communities detected yet.<br><small>Deep-index a folder first, then rebuild.</small></div>'
+        : communities.map(c => `
+            <div class="graph-community-item">
+                <span class="gc-summary">${_escHtml(c.summary || `Community ${c.id}`)}</span>
+                <span class="gc-size">${c.size} files</span>
+            </div>
+          `).join('');
 }

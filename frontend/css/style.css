@@ -1253,3 +1253,42 @@ kbd {
     color: var(--text-dim);
     text-align: center;
 }
+/* ── AI answer panel ────────────────────────────────────────────── */
+.graph-answer-text {
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    border-bottom: 1px solid var(--border);
+    white-space: pre-wrap;
+}
+
+.graph-answer-sources-label {
+    padding: 6px 12px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Communities list ───────────────────────────────────────────── */
+.graph-community-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.gc-summary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.gc-size {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    margin-left: 8px;
+}

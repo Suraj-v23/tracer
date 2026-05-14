@@ -113,3 +113,39 @@ export async function graphFindSimilar(path: string, k?: number): Promise<GraphS
 export async function graphEmbedFolder(path: string): Promise<void> {
     return _invoke('graph_embed_folder', { path }) as Promise<void>;
 }
+
+export interface GlobalAnswer {
+    answer:            string;
+    sources:           GraphSearchResult[];
+    communities_used:  number[];
+}
+
+export interface Community {
+    id:       number;
+    label?:   string;
+    summary?: string;
+    size:     number;
+}
+
+export interface CommunityDetail {
+    id:       number;
+    label?:   string;
+    summary?: string;
+    members:  GraphSearchResult[];
+}
+
+export async function graphGlobalQuery(question: string): Promise<GlobalAnswer> {
+    return _invoke('graph_global_query', { question }) as Promise<GlobalAnswer>;
+}
+
+export async function graphListCommunities(): Promise<Community[]> {
+    return _invoke('graph_list_communities') as Promise<Community[]>;
+}
+
+export async function graphGetCommunity(id: number): Promise<CommunityDetail> {
+    return _invoke('graph_get_community', { id }) as Promise<CommunityDetail>;
+}
+
+export async function graphRebuildCommunities(): Promise<void> {
+    return _invoke('graph_rebuild_communities') as Promise<void>;
+}

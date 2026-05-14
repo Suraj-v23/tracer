@@ -10,6 +10,7 @@ import * as api from './api.js';
 import { showSendPanel } from './transfer.js';
 import { UI_ICONS } from './icons.js';
 import { addIndexedFolder, showImports, showSimilar } from './graphui.js';
+import * as graphApi from './graph.js';
 
 export function toast(msg: string, type = ''): void {
     const el       = document.createElement('div');
@@ -265,6 +266,15 @@ export function bindGlobalEvents(): void {
 
     document.getElementById('graph-indexed-close')?.addEventListener('click', () => {
         document.getElementById('graph-indexed-panel')?.classList.add('hidden');
+    });
+
+    document.getElementById('btn-rebuild-communities')?.addEventListener('click', async () => {
+        toast('Rebuilding communities…', '');
+        try {
+            await graphApi.graphRebuildCommunities();
+        } catch (e) {
+            toast(`Rebuild failed: ${e}`, 'error');
+        }
     });
 
     document.getElementById('send-panel-close')!.addEventListener('click', () => {
