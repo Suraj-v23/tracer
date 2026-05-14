@@ -21,16 +21,23 @@
                 <div id="breadcrumb">/</div>
             </div>
 
-            <button id="btn-back" class="toolbar-btn" title="Go back (Backspace)" disabled>←</button>
-            <button id="btn-forward" class="toolbar-btn" title="Go forward (])" disabled>→</button>
+    <button id="btn-back" class="toolbar-btn" title="Go back (Backspace)" disabled>←</button>
+    <button id="btn-forward" class="toolbar-btn" title="Go forward (])" disabled>→</button>
 
-            <div id="search-wrap">
-                <span class="search-icon">⌕</span>
-                <input id="search-input" type="text" placeholder="Search…" autocomplete="off" spellcheck="false">
-                <button id="search-clear" class="hidden" title="Clear">✕</button>
-            </div>
+    <div id="graph-search-bar" data-mode="filter">
+        <div class="search-mode-pills">
+            <button id="search-mode-filter" class="mode-pill active" title="Filter visible nodes">Filter</button>
+            <button id="search-mode-search" class="mode-pill" title="Search entire index">Search</button>
+            <button id="search-mode-ask"    class="mode-pill" title="Ask AI a question">Ask AI</button>
+        </div>
+        <form id="graph-search-form" class="search-form" autocomplete="off">
+            <span class="search-icon">⌕</span>
+            <input id="graph-search-input" type="search" placeholder="Filter by name…" spellcheck="false">
+            <button id="search-clear" class="hidden" title="Clear" type="button">✕</button>
+        </form>
+    </div>
 
-            <select id="sort-select">
+    <select id="sort-select">
                 <option value="size-desc">Size ↓</option>
                 <option value="size-asc">Size ↑</option>
                 <option value="name-asc">Name A–Z</option>
@@ -86,6 +93,11 @@
         <div class="ctx-divider"></div>
         <div class="ctx-item" id="ctx-new-file">📄 New File</div>
         <div class="ctx-item" id="ctx-new-folder">📁 New Folder</div>
+        <div class="ctx-separator"></div>
+        <div class="ctx-item" id="ctx-deep-index">⬇ Deep Index This Folder</div>
+        <div class="ctx-item" id="ctx-show-imports">→ Show Imports</div>
+        <div class="ctx-item" id="ctx-show-importers">← Show Importers</div>
+        <div class="ctx-item" id="ctx-find-similar">≈ Find Similar Files</div>
         <div class="ctx-item" id="ctx-move">➡ Move into Folder</div>
         <div class="ctx-divider"></div>
         <div class="ctx-item danger" id="ctx-delete">🗑 Delete</div>
@@ -145,6 +157,12 @@
         <div class="loading-path" id="loading-path"></div>
     </div>
 
+    <!-- ── Graph results panel ── -->
+    <div id="graph-results-panel" class="hidden"></div>
+
+    <!-- ── Graph index status bar ── -->
+    <div id="graph-status-bar" class="graph-status-bar"></div>
+
     <!-- ── Toast notifications ── -->
     <div id="toast-container"></div>
 
@@ -180,5 +198,19 @@
     </div>
 
     <script type="module" src="./js/main.js"></script>
+
+    <!-- Graph indexed folders panel -->
+    <div id="graph-indexed-panel" class="hidden">
+        <div class="graph-indexed-header">
+            <span>Deep-Indexed Folders</span>
+            <button id="graph-indexed-close">✕</button>
+        </div>
+        <div id="graph-indexed-folders-list"></div>
+        <div class="graph-indexed-header" style="margin-top:8px">
+            <span>Detected Communities</span>
+            <button id="btn-rebuild-communities" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.72rem;">Rebuild</button>
+        </div>
+        <div id="graph-communities-list"></div>
+    </div>
 </body>
 </html>

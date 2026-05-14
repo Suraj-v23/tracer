@@ -2,6 +2,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 mod transfer;
+mod graph;
 use transfer::commands::TransferAppState;
 use tauri::Manager;
 
@@ -423,6 +424,15 @@ pub fn run() {
                 device_name,
             });
 
+            let db_path = app.path().app_data_dir()
+                .map(|d| d.join("graph.db"))
+                .unwrap_or_else(|_| std::path::PathBuf::from("graph.db"));
+
+            match graph::GraphAppState::new(&db_path) {
+                Ok(graph_state) => { app.manage(graph_state); }
+                Err(e) => eprintln!("[graph] failed to init: {e}"),
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -438,6 +448,27 @@ pub fn run() {
             transfer::commands::accept_transfer,
             transfer::commands::reject_transfer,
             transfer::commands::cancel_transfer,
+            graph::graph_search,
+            graph::graph_get_related,
+            graph::graph_get_duplicates,
+            graph::graph_index_status,
+            graph::graph_set_root,
+            graph::graph_set_llm,
+            graph::graph_add_indexed_folder,
+            graph::graph_remove_indexed_folder,
+            graph::graph_list_indexed_folders,
+            graph::graph_content_search,
+            graph::graph_get_imports,
+            graph::graph_get_importers,
+            graph::graph_get_dep_tree,
+            graph::graph_set_embedding_provider,
+            graph::graph_semantic_search,
+            graph::graph_find_similar,
+            graph::graph_embed_folder,
+            graph::graph_rebuild_communities,
+            graph::graph_list_communities,
+            graph::graph_get_community,
+            graph::graph_global_query,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tracer");

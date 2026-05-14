@@ -8,6 +8,8 @@ import * as store from './store.js';
 import * as api from './api.js';
 import { showSendPanel } from './transfer.js';
 import { UI_ICONS } from './icons.js';
+import { addIndexedFolder, showImports, showSimilar } from './graphui.js';
+import * as graphApi from './graph.js';
 export function toast(msg, type = '') {
     const el = document.createElement('div');
     el.className = `toast ${type}`;
@@ -236,6 +238,40 @@ export function bindGlobalEvents() {
         state.ctxSendPath = item.path;
         await showSendPanel(item.path, item.name);
     });
+    document.getElementById('ctx-deep-index')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu').classList.add('hidden');
+        const item = state.ctxTarget;
+        if (!item || item.type !== 'directory')
+            return;
+        await addIndexedFolder(item.path);
+    });
+    document.getElementById('ctx-show-imports')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu').classList.add('hidden');
+        if (state.ctxTarget)
+            await showImports(state.ctxTarget.path, 'imports');
+    });
+    document.getElementById('ctx-show-importers')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu').classList.add('hidden');
+        if (state.ctxTarget)
+            await showImports(state.ctxTarget.path, 'importers');
+    });
+    document.getElementById('ctx-find-similar')?.addEventListener('click', async () => {
+        document.getElementById('ctx-menu').classList.add('hidden');
+        if (state.ctxTarget)
+            await showSimilar(state.ctxTarget.path);
+    });
+    document.getElementById('graph-indexed-close')?.addEventListener('click', () => {
+        document.getElementById('graph-indexed-panel')?.classList.add('hidden');
+    });
+    document.getElementById('btn-rebuild-communities')?.addEventListener('click', async () => {
+        toast('Rebuilding communities…', '');
+        try {
+            await graphApi.graphRebuildCommunities();
+        }
+        catch (e) {
+            toast(`Rebuild failed: ${e}`, 'error');
+        }
+    });
     document.getElementById('send-panel-close').addEventListener('click', () => {
         document.getElementById('send-panel').classList.add('hidden');
     });
@@ -278,7 +314,7 @@ export function bindGlobalEvents() {
             showDeleteModal(item);
     });
     document.getElementById('sidebar-close').addEventListener('click', closeSidebar);
-    const searchInput = document.getElementById('search-input');
+    const searchInput = document.getElementById('graph-search-input');
     searchInput.addEventListener('input', e => applySearch(e.target.value.trim()));
     document.getElementById('search-clear').addEventListener('click', () => {
         searchInput.value = '';
@@ -291,7 +327,7 @@ export function bindGlobalEvents() {
         applyFiltersAndRender();
     });
     window.addEventListener('keydown', e => {
-        const si = document.getElementById('search-input');
+        const si = document.getElementById('graph-search-input');
         if (document.activeElement === si) {
             if (e.key === 'Escape') {
                 si.blur();
@@ -397,6 +433,19 @@ export function bindNodeContextMenu(item, e) {
     document.getElementById('ctx-open').classList.toggle('hidden', !isDir);
     document.getElementById('ctx-open-new').classList.toggle('hidden', !isDir);
     document.getElementById('ctx-collapse').classList.toggle('hidden', !isExpanded);
+    const deepIdx = document.getElementById('ctx-deep-index');
+    if (deepIdx)
+        deepIdx.style.display = item.type === 'directory' ? '' : 'none';
+    const isCode = !!(item.extension && ['.ts', '.js', '.tsx', '.jsx', '.py', '.rs', '.go'].includes(item.extension));
+    const importItems = ['ctx-show-imports', 'ctx-show-importers'];
+    importItems.forEach(id => {
+        const el = document.getElementById(id);
+        if (el)
+            el.style.display = isCode ? '' : 'none';
+    });
+    const similarEl = document.getElementById('ctx-find-similar');
+    if (similarEl)
+        similarEl.style.display = item.type === 'file' ? '' : 'none';
     const ctxMenu = document.getElementById('ctx-menu');
     ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 190) + 'px';
     ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 180) + 'px';

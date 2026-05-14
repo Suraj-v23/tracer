@@ -1039,3 +1039,256 @@ kbd {
 #cache-badge button:hover {
     background: rgba(255, 255, 255, 0.1);
 }
+
+/* ── Graph search bar ───────────────────────────────────────────── */
+#graph-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.search-mode-pills {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.mode-pill {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.mode-pill.active,
+.mode-pill:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
+.search-form {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0 8px;
+    gap: 4px;
+}
+
+.search-form input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 0.82rem;
+    padding: 4px 0;
+    min-width: 0;
+}
+
+/* ── Graph results panel ────────────────────────────────────────── */
+#graph-results-panel {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(680px, 90vw);
+    max-height: 380px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    z-index: 200;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.graph-results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.graph-results-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 4px;
+}
+
+.graph-results-list {
+    overflow-y: auto;
+    flex: 1;
+}
+
+.graph-result-item {
+    display: grid;
+    grid-template-columns: 20px 1fr 70px;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+}
+
+.graph-result-item:hover { background: var(--bg-hover); }
+.gr-icon { text-align: center; }
+.gr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-size { color: var(--text-dim); font-size: 0.72rem; text-align: right; }
+.gr-snippet {
+    grid-column: 2 / -1;
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.graph-results-loading,
+.graph-results-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+}
+
+/* ── Index status bar ───────────────────────────────────────────── */
+.graph-status-bar {
+    position: fixed;
+    bottom: 6px;
+    right: 12px;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    z-index: 100;
+    pointer-events: none;
+}
+
+.graph-status-bar.indexing { color: var(--accent); }
+
+/* ── Deep index panel ───────────────────────────────────────────── */
+#graph-indexed-panel {
+    position: fixed;
+    bottom: 40px;
+    right: 16px;
+    width: 300px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 150;
+    overflow: hidden;
+}
+
+.graph-indexed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+}
+
+.graph-indexed-header button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.graph-indexed-folder {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.gif-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.gif-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+
+.gif-remove:hover { color: var(--danger); }
+
+.graph-no-folders {
+    padding: 16px 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-align: center;
+}
+/* ── AI answer panel ────────────────────────────────────────────── */
+.graph-answer-text {
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    border-bottom: 1px solid var(--border);
+    white-space: pre-wrap;
+}
+
+.graph-answer-sources-label {
+    padding: 6px 12px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Communities list ───────────────────────────────────────────── */
+.graph-community-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.gc-summary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.gc-size {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    margin-left: 8px;
+}
