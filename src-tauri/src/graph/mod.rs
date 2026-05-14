@@ -5,6 +5,7 @@ pub mod llm;
 pub mod content;
 pub mod parser;
 pub mod embedder;
+pub mod community;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
